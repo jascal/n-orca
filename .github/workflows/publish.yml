@@ -16,7 +16,8 @@ jobs:
       url: https://pypi.org/p/n-orca
 
     permissions:
-      contents: read
+      # `contents: write` lets the final step attach built wheels to the GitHub Release.
+      contents: write
       # `id-token: write` is required if you migrate to PyPI Trusted Publishing.
       # Token-based publish below does not need it, but leaving it on is harmless.
       id-token: write
