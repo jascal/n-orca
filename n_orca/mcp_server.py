@@ -243,6 +243,10 @@ def build_sae(
     l1_coeff: float = 1e-2,
     theta_init: float = 0.1,
     l0_coeff: float = 5e-3,
+    n_heads: int = 4,
+    attn_dropout: float = 0.0,
+    n_labels: int = 100,
+    aux_weight: float = 0.1,
     name: str | None = None,
     out_markdown: str | None = None,
     out_mermaid: str | None = None,
@@ -250,15 +254,32 @@ def build_sae(
     """Build a sparse-autoencoder architecture and verify it.
 
     Args:
-        variant: "topk" | "l1" | "jumprelu"
+        variant: "topk" | "l1" | "jumprelu" | "attn_topk" | "supervised_topk" | "gated"
         input_dim: the activation dim the SAE reconstructs
         n_features: dictionary width (typical: 16k–1M, expansion factor 4-32x)
-        k: top-k threshold (variant="topk" only)
-        l1_coeff: L1 penalty coefficient (variant="l1" only — metadata, not used in forward)
-        theta_init: initial threshold (variant="jumprelu" only)
-        l0_coeff: L0 penalty coefficient (variant="jumprelu" only — metadata)
+        k: top-k threshold ("topk", "attn_topk", "supervised_topk")
+        l1_coeff: L1 penalty coefficient ("l1" only — metadata)
+        theta_init: initial threshold ("jumprelu" only)
+        l0_coeff: L0 penalty coefficient ("jumprelu" only — metadata)
+        n_heads: MultiHeadAttention head count ("attn_topk" only)
+        attn_dropout: attention dropout ("attn_topk" only)
+        n_labels: classifier output dim ("supervised_topk" only)
+        aux_weight: auxiliary loss weight ("supervised_topk" only — metadata)
         name: override architecture name
         out_markdown / out_mermaid: optional file paths to write
+
+    The "attn_topk" variant prepends a MultiHeadAttention block (with residual
+    + LayerNorm) before the SAE encoder, so each position can see cross-
+    sequence context. Its input/output tensors are 3D `(B, T, input_dim)`
+    instead of 2D — consumers must feed per-token / per-residue / per-agent
+    activations, NOT pooled. Mirrors econ-sae's AttnWorldModel structural
+    unlock (Phase 1.6: conjunctive mAUC 0.84 → 0.97).
+
+    The "supervised_topk" variant adds an auxiliary per-label classifier head
+    off the sparse latents; the compiled forward returns `(x_hat, y_logits)`.
+    Joint reconstruction + BCE-on-labels loss (loss weight is metadata).
+    Mirrors econ-sae Phase 5.1's regime-supervised SAE (regime mAUC
+    0.885 → 0.972 — biggest single-phase jump in econ-sae's journey).
     """
     variant = (variant or "").lower()
     builder_kw: dict[str, Any] = {"input_dim": input_dim, "n_features": n_features}
@@ -274,8 +295,23 @@ def build_sae(
         builder_kw["theta_init"] = theta_init
         builder_kw["l0_coeff"] = l0_coeff
         arch = _sae.jumprelu_sae(**builder_kw)
+    elif variant in ("attn_topk", "attn-topk"):
+        builder_kw["k"] = k
+        builder_kw["n_heads"] = n_heads
+        builder_kw["attn_dropout"] = attn_dropout
+        arch = _sae.attn_topk_sae(**builder_kw)
+    elif variant in ("supervised_topk", "supervised-topk", "sup_topk"):
+        builder_kw["k"] = k
+        builder_kw["n_labels"] = n_labels
+        builder_kw["aux_weight"] = aux_weight
+        arch = _sae.supervised_topk_sae(**builder_kw)
+    elif variant in ("gated", "gated_sae"):
+        arch = _sae.gated_sae(**builder_kw)
     else:
-        return {"error": f"unknown variant {variant!r}; expected 'topk' | 'l1' | 'jumprelu'"}
+        return {"error": (
+            f"unknown variant {variant!r}; expected 'topk' | 'l1' | "
+            f"'jumprelu' | 'attn_topk' | 'supervised_topk' | 'gated'"
+        )}
 
     return _materialise(arch, out_markdown=out_markdown, out_mermaid=out_mermaid)
 
