@@ -104,6 +104,14 @@ class _JepaSpec:
 
 
 def _is_lewm(config: dict[str, Any]) -> bool:
+    """Detect a LeWorldModel (Hydra) config.
+
+    LeWM checkpoints carry no `model_type` / `architectures`; they are keyed by
+    a Hydra `_target_` and nested `encoder`/`predictor` sub-dicts. We accept
+    either an explicit `_target_` mentioning the family or the structural shape
+    (an `encoder` + `predictor` dict pair) — the latter is the fallback path for
+    forks that rename the target.
+    """
     target = str(config.get("_target_") or "").lower()
     if any(s in target for s in ("lewm", "leworldmodel")):
         return True
@@ -112,6 +120,8 @@ def _is_lewm(config: dict[str, Any]) -> bool:
 
 
 def _parse(config: dict[str, Any]) -> _JepaSpec:
+    # LeWM's nested Hydra schema is parsed differently from the flat
+    # transformers schema (V-JEPA 2 / I-JEPA); dispatch on structure here.
     if _is_lewm(config):
         return _parse_lewm(config)
     return _parse_hf(config)
