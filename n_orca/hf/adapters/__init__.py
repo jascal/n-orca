@@ -5,6 +5,6 @@ declared model type / architecture name. Each adapter is a small,
 declarative class.
 """
 from n_orca.hf.adapters.base import HfAdapter, register, get_adapter, list_adapters
-from n_orca.hf.adapters import gpt2, llama_family, bert, esm  # noqa: F401  (side-effect: registers)
+from n_orca.hf.adapters import gpt2, llama_family, bert, esm, jepa  # noqa: F401  (side-effect: registers)
 
 __all__ = ["HfAdapter", "register", "get_adapter", "list_adapters"]
