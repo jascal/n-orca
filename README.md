@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/n-orca.svg)](https://pypi.org/project/n-orca/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/n-orca/)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/jascal/n-orca/blob/main/LICENSE)
-[![Tests](https://img.shields.io/badge/tests-111%20passing-brightgreen)](https://github.com/jascal/n-orca/tree/main/tests)
+[![Tests](https://img.shields.io/badge/tests-139%20passing-brightgreen)](https://github.com/jascal/n-orca/tree/main/tests)
 
 N-Orca is a Markdown DSL for declaring, verifying, visualizing, and executing
 neural network architectures. It is a domain-specific dialect of
@@ -172,6 +172,8 @@ catalog with examples.
 | `ReLU`, `GELU`, `SiLU`, `Tanh`, `Sigmoid`, `Softmax(dim)` | matching `nn.*` | activations |
 | `Dropout(p)` | `nn.Dropout` | regularization |
 | `Embedding(n, d)` | `nn.Embedding` | token / position embeddings |
+| `PatchEmbed(c, d, p)` | `nn.Conv2d` + flatten + transpose | image → patch-token sequence (ViT / I-JEPA) |
+| `TubeletEmbed(c, d, t, p)` | `nn.Conv3d` + flatten + transpose | video clip → tubelet-token sequence (V-JEPA 2) |
 | `MultiHeadAttention(d, h, dropout)` | `nn.MultiheadAttention` (batch-first) | self-attention |
 | `FeedForward(d, d_ff, dropout)` | `nn.Sequential(Linear, GELU, Dropout, Linear, Dropout)` | transformer FFN |
 | `Add`, `Mul` | functional `+` / `*` | residual / gated paths |
@@ -202,9 +204,16 @@ n-orca hf info meta-llama/Llama-2-7b-hf --revision <commit-sha>
 n-orca hf download gpt2 --config-only
 n-orca hf download gpt2 --allow "*.safetensors" --local-dir ./gpt2
 
+# Vision / video models: also grab the (video) preprocessor config
+n-orca hf download facebook/vjepa2-vitl-fpc64-256 --config-only --include-processor
+
 # Convert an HF model -> .n.orca.md (+ optional Mermaid)
 n-orca hf convert gpt2 --out gpt2.n.orca.md --mermaid gpt2.mmd
 n-orca hf convert meta-llama/Llama-2-7b-hf --out llama-7b.n.orca.md
+
+# JEPA / V-JEPA 2 / LeWorldModel world models
+n-orca hf convert facebook/vjepa2-vitl-fpc64-256 --out vjepa2.n.orca.md --mermaid vjepa2.mmd
+n-orca hf convert quentinll/lewm-pusht --out lewm-pusht.n.orca.md
 ```
 
 The convert command reads `config.json` only — **no model weights or remote
@@ -219,6 +228,16 @@ writes a verified `.n.orca.md`.
 | `Gpt2Adapter` | `gpt2`, `gpt_neo`, `gpt_neox`, `openai-gpt` | Decoder-only, pre-LN, learned positional embeddings |
 | `LlamaFamilyAdapter` | `llama`, `mistral`, `mixtral`, `qwen2`, `qwen3`, `qwen2_moe`, `gemma`, `gemma2`, `phi`, `phi3` | Decoder-only, RMSNorm + RoPE + SwiGLU (approximated in v1) |
 | `BertAdapter` | `bert`, `roberta`, `distilbert`, `electra`, `albert` | Encoder-only, post-LN; segment-type embeddings omitted in v1 |
+| `EsmAdapter` | `esm` | ESM-2 protein LM; pre-norm encoder, rotary positions left implicit |
+| `JepaAdapter` | `vjepa2`, `ijepa`, `jepa`, `leworldmodel`, `lewm` (+ `VJEPA2Model` / `IJepaModel` / LeWM Hydra configs) | Joint-embedding **world models**: ViT encoder → predictor. Video tubelet (Conv3d) or image patch (Conv2d) embed; optional action conditioning + projector. Mask tokens, EMA target, SIGReg captured as verification rules |
+
+`JepaAdapter` normalizes two unrelated config schemas into one encoder →
+predictor DAG: the flat `transformers` config (V-JEPA 2 / I-JEPA, with `pred_*`
+predictor fields) and the nested Hydra config used by LeWorldModel
+(`quentinll/lewm-*`), which carries no `model_type` and is matched structurally.
+Both latent outputs (`encoder_latents`, `predicted_latents`) live in the
+encoder's embedding space, so the `output_shape` invariant enforces latent-dim
+consistency between the representation and the forecast.
 
 Adding a new family is a ~50-line file in `n_orca/hf/adapters/` — declare
 `model_types` and implement `build(config, name=...)` to return an
@@ -246,7 +265,9 @@ print(f"params: {result.report.param_count:,}, valid: {result.report.valid}")
 
 Pre-generated example outputs live in [`examples/hf-generated/`](examples/hf-generated/):
 `gpt2-small.n.orca.md`, `bert-base-uncased.n.orca.md`, `llama-7b.n.orca.md`,
-`tinyllama-2L.n.orca.md` — each with a matching `.mmd` diagram.
+`tinyllama-2L.n.orca.md`, `vjepa2.n.orca.md` (V-JEPA 2 ViT-L, 326M params),
+`lewm-pusht.n.orca.md` (action-conditioned LeWorldModel) — each with a matching
+`.mmd` diagram.
 
 ---
 
@@ -274,18 +295,20 @@ pytest -v
 ```
 
 ```
-tests/test_cli.py            7 passed
-tests/test_hf_adapters.py   13 passed
-tests/test_hf_cli.py         4 passed
-tests/test_hf_client.py      8 passed
-tests/test_mermaid.py        3 passed
-tests/test_ops.py           17 passed
-tests/test_parser.py        11 passed
-tests/test_pytorch.py        9 passed
-tests/test_render.py         2 passed
-tests/test_verifier.py      15 passed
+tests/test_cli.py                 7 passed
+tests/test_hf_adapters.py        28 passed
+tests/test_hf_cli.py              4 passed
+tests/test_hf_client.py           8 passed
+tests/test_mermaid.py             4 passed
+tests/test_mcp_server.py          5 passed
+tests/test_ops.py                22 passed
+tests/test_parser.py             11 passed
+tests/test_pytorch.py             8 passed
+tests/test_render.py              2 passed
+tests/test_sae_and_world_models.py  24 passed
+tests/test_verifier.py           16 passed
 =========================
-88 passed in 3.73s
+139 passed in 13.29s
 ```
 
 ---

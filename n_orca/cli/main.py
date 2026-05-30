@@ -59,6 +59,9 @@ def main(argv: list[str] | None = None) -> int:
     p_dl.add_argument("--revision", default=None)
     p_dl.add_argument("--config-only", action="store_true",
                       help="download only config.json")
+    p_dl.add_argument("--include-processor", action="store_true",
+                      help="also fetch preprocessor / video-processor config "
+                           "(needed for V-JEPA / vision models)")
     p_dl.add_argument("--allow", action="append", default=None,
                       help="glob to include (repeatable)")
     p_dl.add_argument("--local-dir", type=Path, default=None,
@@ -283,17 +286,31 @@ def _cmd_hf_info(args) -> int:
 
 def _cmd_hf_download(args) -> int:
     from n_orca.hf import HfClient, HfClientError
+    # Processor / preprocessor configs ship under several names depending on
+    # modality; V-JEPA stores the video processor in video_preprocessor_config.
+    PROCESSOR_FILES = (
+        "preprocessor_config.json",
+        "video_preprocessor_config.json",
+        "processor_config.json",
+        "image_processor_config.json",
+    )
     try:
         client = HfClient()
         if args.config_only:
             cfg_path = client.download_file(args.model_id, "config.json",
                                             revision=args.revision)
             print(f"wrote {cfg_path}")
+            if args.include_processor:
+                _download_processor_files(client, args, PROCESSOR_FILES)
             return 0
+        allow = args.allow
+        if args.include_processor and allow is not None:
+            # Keep processor configs in an otherwise weight-only snapshot.
+            allow = list(allow) + list(PROCESSOR_FILES)
         snap = client.download_model(
             args.model_id,
             revision=args.revision,
-            allow_patterns=args.allow,
+            allow_patterns=allow,
             local_dir=args.local_dir,
         )
         print(f"wrote snapshot to {snap}")
@@ -301,6 +318,26 @@ def _cmd_hf_download(args) -> int:
     except HfClientError as ex:
         print(f"error: {ex}", file=sys.stderr)
         return 1
+
+
+def _download_processor_files(client, args, candidates) -> None:
+    """Best-effort fetch of processor configs alongside a config-only download.
+
+    Most repos ship at most one of these; missing files are skipped silently
+    so a model without a processor doesn't turn into an error.
+    """
+    from n_orca.hf import HfClientError
+    found = False
+    for fn in candidates:
+        try:
+            path = client.download_file(args.model_id, fn, revision=args.revision)
+        except HfClientError:
+            continue
+        print(f"wrote {path}")
+        found = True
+    if not found:
+        print("note: no processor/preprocessor config found in this repo",
+              file=sys.stderr)
 
 
 def _cmd_hf_convert(args) -> int:

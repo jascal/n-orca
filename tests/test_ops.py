@@ -105,3 +105,41 @@ def test_mha_preserves_shape():
     spec = get_op("MultiHeadAttention")
     out = spec.infer(["64", "8", "0.1"], [("B", "S", "64")])
     assert out == ("B", "S", "64")
+
+
+def test_tubelet_embed_folds_video_to_tokens():
+    spec = get_op("TubeletEmbed")
+    # (B, 3, 64, 256, 256) clip, embed 1024, tubelet 2, patch 16
+    # tokens = (64/2) * (256/16) * (256/16) = 32 * 16 * 16 = 8192
+    out = spec.infer(["3", "1024", "2", "16"], [("B", "3", "64", "256", "256")])
+    assert out == ("B", "8192", "1024")
+
+
+def test_tubelet_embed_params_match_conv3d():
+    spec = get_op("TubeletEmbed")
+    # in*out*kt*kh*kw + out
+    assert spec.params(["3", "1024", "2", "16"], []) == 3 * 1024 * 2 * 16 * 16 + 1024
+
+
+def test_tubelet_embed_requires_5d():
+    spec = get_op("TubeletEmbed")
+    with pytest.raises(ShapeRuleError):
+        spec.infer(["3", "32", "2", "16"], [("B", "3", "32", "32")])
+
+
+def test_tubelet_embed_stays_symbolic_when_dims_unknown():
+    spec = get_op("TubeletEmbed")
+    out = spec.infer(["3", "d", "2", "16"], [("B", "3", "T", "H", "W")])
+    assert out == ("B", "(T/2)*(H/16)*(W/16)", "d")
+
+
+def test_patch_embed_folds_image_to_tokens():
+    spec = get_op("PatchEmbed")
+    # (B, 3, 224, 224), embed 192, patch 14 -> (224/14)^2 = 256 tokens
+    out = spec.infer(["3", "192", "14"], [("B", "3", "224", "224")])
+    assert out == ("B", "256", "192")
+
+
+def test_patch_embed_params_match_conv2d():
+    spec = get_op("PatchEmbed")
+    assert spec.params(["3", "192", "14"], []) == 3 * 192 * 14 * 14 + 192

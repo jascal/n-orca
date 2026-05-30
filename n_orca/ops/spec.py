@@ -489,6 +489,122 @@ _register(OpSpec(
 ))
 
 
+def _tokens_from_spatial(spatial: list[str], kernels: list[str]) -> str:
+    """Fold a patch/tubelet token count from spatial dims + per-dim kernels.
+
+    Each spatial dim `d` is downsampled by the matching kernel `k` (kernel ==
+    stride for non-overlapping patch embedding), giving `d // k` patches along
+    that axis; the token count is their product. When every value is an integer
+    literal the count folds to a concrete integer; otherwise it stays symbolic
+    as `(d0/k0)*(d1/k1)*...` so the verifier can still propagate a shape.
+    """
+    per_axis: list[str] = []
+    literal = True
+    for d, k in zip(spatial, kernels):
+        di, ki = _try_int(d), _try_int(k)
+        if di is not None and ki is not None:
+            per_axis.append(str(di // ki))
+        else:
+            literal = False
+            per_axis.append(f"{d}/{k}")
+    if literal:
+        prod = 1
+        for v in per_axis:
+            prod *= int(v)
+        return str(prod)
+    return "*".join(f"({a})" if "/" in a else a for a in per_axis)
+
+
+def _tubelet_embed_infer(args, shapes):
+    _require_arity("TubeletEmbed", 1, len(shapes))
+    if len(args) < 4:
+        raise ShapeRuleError(
+            "TubeletEmbed requires (in_chans, embed_dim, tubelet_size, patch_size) args"
+        )
+    shape = shapes[0]
+    if len(shape) != 5:
+        raise ShapeRuleError(
+            f"TubeletEmbed expects a 5D clip (B, C, T, H, W); got {shape}"
+        )
+    b, _c, t, h, w = shape
+    embed_dim, tubelet, patch = args[1], args[2], args[3]
+    n_tokens = _tokens_from_spatial([t, h, w], [tubelet, patch, patch])
+    return (b, n_tokens, embed_dim)
+
+
+def _tubelet_embed_params(args, shapes):
+    if len(args) < 4:
+        return 0
+    ic, ed, tub, pat = (_try_int(args[0]), _try_int(args[1]),
+                        _try_int(args[2]), _try_int(args[3]))
+    if None in (ic, ed, tub, pat):
+        return 0
+    return ic * ed * tub * pat * pat + ed
+
+
+def _patch_embed_infer(args, shapes):
+    _require_arity("PatchEmbed", 1, len(shapes))
+    if len(args) < 3:
+        raise ShapeRuleError(
+            "PatchEmbed requires (in_chans, embed_dim, patch_size) args"
+        )
+    shape = shapes[0]
+    if len(shape) != 4:
+        raise ShapeRuleError(
+            f"PatchEmbed expects an image (B, C, H, W); got {shape}"
+        )
+    b, _c, h, w = shape
+    embed_dim, patch = args[1], args[2]
+    n_tokens = _tokens_from_spatial([h, w], [patch, patch])
+    return (b, n_tokens, embed_dim)
+
+
+def _patch_embed_params(args, shapes):
+    if len(args) < 3:
+        return 0
+    ic, ed, pat = _try_int(args[0]), _try_int(args[1]), _try_int(args[2])
+    if None in (ic, ed, pat):
+        return 0
+    return ic * ed * pat * pat + ed
+
+
+def _tubelet_embed_init(args):
+    if len(args) < 4:
+        return "nn.Identity()  # TubeletEmbed — missing args"
+    ic, ed, tub, pat = args[0], args[1], args[2], args[3]
+    return (
+        f"nn.Conv3d({ic}, {ed}, kernel_size=({tub}, {pat}, {pat}),"
+        f" stride=({tub}, {pat}, {pat}))"
+    )
+
+
+def _patch_embed_init(args):
+    if len(args) < 3:
+        return "nn.Identity()  # PatchEmbed — missing args"
+    ic, ed, pat = args[0], args[1], args[2]
+    return f"nn.Conv2d({ic}, {ed}, kernel_size={pat}, stride={pat})"
+
+
+# Conv (3D or 2D) patch projection, then flatten the spatial grid into a token
+# sequence and move channels last so attention sees (B, N, embed_dim).
+_register(OpSpec(
+    "TubeletEmbed", 1,
+    infer=_tubelet_embed_infer, params=_tubelet_embed_params,
+    pytorch_init=_tubelet_embed_init,
+    pytorch_call=lambda a, inputs: (
+        f"self.{{NAME}}({inputs[0]}).flatten(2).transpose(1, 2)"
+    ),
+))
+_register(OpSpec(
+    "PatchEmbed", 1,
+    infer=_patch_embed_infer, params=_patch_embed_params,
+    pytorch_init=_patch_embed_init,
+    pytorch_call=lambda a, inputs: (
+        f"self.{{NAME}}({inputs[0]}).flatten(2).transpose(1, 2)"
+    ),
+))
+
+
 def _resolve_in_forward(arg: str) -> str:
     """Resolve an op-arg token for use in a forward() body.
 
