@@ -4,7 +4,7 @@ from n_orca.parser import parse, parse_file
 from n_orca.verifier import verify, VerificationReport, VerificationError
 from n_orca import sae, world_models
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "Architecture",
