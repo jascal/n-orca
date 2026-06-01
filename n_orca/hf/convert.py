@@ -69,6 +69,11 @@ def convert(
         )
 
     arch = adapter.build(config, name=name)
+    # Stamp provenance so the runtime-capability backend has the authoritative
+    # model_type (not a name/description guess). Round-trips as `## runtime`.
+    mt = config.get("model_type")
+    if mt and "model_type" not in arch.metadata:
+        arch.metadata["model_type"] = str(mt)
     report = verify(arch)
     markdown = render(arch)
     mermaid = compile_mermaid(arch)

@@ -72,6 +72,12 @@ def render(arch: Architecture) -> str:
         for rule in arch.verification_rules:
             lines.append(f"- {rule}")
 
+    if arch.metadata:
+        lines.append("")
+        lines.append("## runtime")
+        for key, value in arch.metadata.items():
+            lines.append(f"- {key}: {value}")
+
     lines.append("")
     return "\n".join(lines)
 

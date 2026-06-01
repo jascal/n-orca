@@ -65,6 +65,10 @@ class Architecture:
     flow: list[FlowEdge] = field(default_factory=list)
     invariants: list[Invariant] = field(default_factory=list)
     verification_rules: list[str] = field(default_factory=list)
+    #: Provenance / runtime hints (e.g. `model_type` stamped by HF `convert`).
+    #: Round-trips through Markdown as a `## runtime` section. Used by the
+    #: runtime-capability backend; never affects topology/shape verification.
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def layer(self, name: str) -> Layer | None:
         for ly in self.layers:

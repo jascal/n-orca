@@ -111,10 +111,14 @@ Declarative bounds. Verified at the resource-bound stage.
 - param_count <= 50M
 - flops <= 1G
 - output_shape: (B, S, d_model)
+- vram_estimate <= 24G
 ```
 
-Supported predicates: `param_count`, `flops`, `depth`, `output_shape`.
-Suffixes: `K`, `M`, `G` (decimal) on numeric bounds.
+Supported predicates: `param_count`, `flops`, `depth`, `output_shape`,
+`vram_estimate`. Suffixes: `K`, `M`, `G` (decimal) on numeric bounds.
+`vram_estimate` is a calibrated best-effort 4-bit QLoRA GPU-memory estimate
+(Stage 6); it is checked as a **warning** and only applies to decoder-LLM
+architectures.
 
 ### `## verification rules`
 
@@ -128,6 +132,18 @@ Narrative rules, used by the LLM and reflected in stage-by-stage error reporting
 ```
 
 These mostly mirror the built-in checks; including them gives the LLM the vocabulary to think with.
+
+### `## runtime`
+
+Optional provenance / runtime hints as `- key: value` bullets. `n-orca hf
+convert` stamps the source `model_type` here so the runtime-capability backend
+(Stage 6) has an authoritative signal rather than guessing from the name. Does
+not affect topology/shape verification; round-trips through `render`.
+
+```markdown
+## runtime
+- model_type: llama
+```
 
 ---
 

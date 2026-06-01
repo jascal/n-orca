@@ -31,32 +31,46 @@ Severity column: `E` = error (architecture is invalid); `W` = warning
 | `DEPTH_BUDGET_EXCEEDED` | 4 | E | longest path exceeds `depth <=` | shorten chain, or relax invariant |
 | `OUTPUT_SHAPE_INVARIANT` | 4 | E | inferred output shape differs from `## invariants` | adjust architecture or invariant |
 | `FLOPS_NOT_IMPLEMENTED` | 4 | W | `flops` invariants are accepted but not enforced | remove the invariant, or use an external profiler |
-| `VRAM_BUDGET_EXCEEDED` | 4 | E | estimated QLoRA VRAM exceeds `vram_estimate <=` | raise the budget, lower `max_seq_length`/batch/LoRA rank, or pick a smaller base model |
 | `UNKNOWN_OP` | 5 | W | layer uses an op not in the standard library | pick a standard op, or accept the placeholder and supply a custom module in the host |
+| `VRAM_BUDGET_EXCEEDED` | 6 | W | central QLoRA VRAM estimate exceeds `vram_estimate <=` | raise the budget, lower `max_seq_length`/batch/LoRA rank, or pick a smaller base model — then measure |
+| `VRAM_ESTIMATE_NOT_APPLICABLE` | 6 | W | a `vram_estimate` invariant is declared but no QLoRA estimate applies (not a decoder LLM, or below the size floor) | remove the invariant, or apply it to a decoder-LLM architecture |
 
 ## Stage 6 — Runtime (informational)
 
-Stage 6 does not produce error codes. It records a `runtime` block on every
-report — which HF model family the architecture maps to, whether the
-[Unsloth](https://github.com/unslothai/unsloth) runtime backend can load and
-fine-tune it (and via which loader / patched classes), the default LoRA target
-modules, and a **best-effort** 4-bit QLoRA GPU-memory estimate. Backend
-coverage is *reported, not required*: a custom architecture with no Unsloth
-fast path is still a valid design.
+Stage 6 records a `runtime` block on every report and is **non-failing**: it
+emits at most warnings, never errors, so it cannot by itself invalidate a sound
+architecture (warnings are promoted to errors only under `--strict`).
 
-The one runtime check that can fail a document is the `vram_estimate` invariant
-(Stage 4, `VRAM_BUDGET_EXCEEDED` above) — declare a budget with
-`- vram_estimate <= 24G` and the estimator is checked against it. The estimate
-is pure static analysis (no torch / transformers / unsloth import, no GPU);
-treat it as ±50%, useful as a budget gate rather than a guarantee.
+It reports, from static config alone (no torch / transformers / unsloth import,
+no GPU):
+
+- **Three-state Unsloth coverage** — `supported` (a verified `model_type` in the
+  [Unsloth](https://github.com/unslothai/unsloth) architecture-support snapshot),
+  `unsupported` (structurally outside Unsloth's decoder-LLM/VLM scope —
+  encoder-only, encoder-decoder, joint-embedding world models — true regardless
+  of Unsloth version), or `unknown` (a recognized decoder LM not in the snapshot,
+  or a custom design). It does not guess: an `unknown` means "not verified", not
+  "won't work". The snapshot date is in `support_verified`.
+- **A calibrated QLoRA VRAM range** (`low_gib` / `central_gib` / `high_gib`),
+  produced **only for transformer decoder LLMs above a size floor** — applying a
+  QLoRA estimate to an SAE / CNN / encoder is meaningless, so those report
+  `vram_estimate: null` with a `vram_note`. The estimate is a heuristic
+  calibrated against published Unsloth benchmarks (Llama-3.1 8B / 70B QLoRA),
+  models flash-attention + RAM-offloaded gradient checkpointing, and is a
+  **range, not a guarantee** — use it as a planning gate, then measure.
+
+Declaring `- vram_estimate <= 24G` checks the central estimate against the
+budget and **warns** (`VRAM_BUDGET_EXCEEDED`) if it likely won't fit, or
+`VRAM_ESTIMATE_NOT_APPLICABLE` if no estimate applies.
 
 ```json
 "runtime": {
-  "model_type": "llama", "family": "llama", "unsloth_supported": true,
-  "loader": "FastLanguageModel",
+  "model_type": "llama", "family": "llama", "unsloth_status": "supported",
+  "is_decoder_lm": true, "loader": "FastLanguageModel", "fast_class": "FastLlamaModel",
   "patched_classes": ["LlamaAttention", "LlamaDecoderLayer", "LlamaModel"],
   "default_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-  "vram_estimate": {"total_gib": 5.25, "breakdown_gib": {"base_4bit": 2.47, ...}, "assumptions": {...}}
+  "vram_estimate": {"central_gib": 5.44, "low_gib": 4.08, "high_gib": 7.62, "breakdown_gib": {...}, "assumptions": {...}, "calibration": "..."},
+  "support_verified": "Verified mid-2025 against docs.unsloth.ai ..."
 }
 ```
 

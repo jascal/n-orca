@@ -474,23 +474,9 @@ def _stage_resources(arch: Architecture, report: VerificationReport) -> None:
                         "adjust the architecture so the final output matches the invariant",
                     )
         elif inv.kind == "vram_estimate":
-            # Estimate peak GPU memory for a 4-bit QLoRA fine-tune and check it
-            # against the declared budget (bytes; write the bound as e.g.
-            # `vram_estimate <= 24G`). Best-effort — see backends.capability.
-            hparams = {hp.name: hp.default for hp in arch.hyperparameters}
-            est = capability.estimate_qlora_vram(
-                param_count=total_params, hyperparameters=hparams,
-            )
-            report.runtime["vram_estimate"] = est.to_dict()
-            if not _compare(est.total_bytes, inv.op, inv.value):
-                report.add_error(
-                    "VRAM_BUDGET_EXCEEDED",
-                    f"estimated QLoRA VRAM = {est.total_gib} GiB"
-                    f" ({est.total_bytes} bytes) fails"
-                    f" `vram_estimate {inv.op} {inv.value}`",
-                    "raise the budget, lower max_seq_length / batch_size / LoRA"
-                    " rank, or pick a smaller base model",
-                )
+            # Enforced in Stage 6 (runtime), where the calibrated QLoRA estimate
+            # is computed — keeps a single source of truth for the number.
+            pass
         elif inv.kind == "flops":
             # Best-effort: skip — FLOPs estimation is out of scope for v0.1.
             report.add_warning(
@@ -618,16 +604,41 @@ def _stage_ops(arch: Architecture, report: VerificationReport) -> None:
 def _stage_runtime(arch: Architecture, report: VerificationReport) -> None:
     """Report what the Unsloth runtime backend can do with this architecture.
 
-    Purely informational: it records a `runtime` block on the report (which
-    family the architecture maps to, whether Unsloth fast-paths it, the loader
-    class, default LoRA targets, and a best-effort QLoRA VRAM estimate). It
-    never adds errors — a custom architecture with no Unsloth fast path is a
-    perfectly valid design; the `vram_estimate` invariant (Stage 4) is the only
-    runtime check that can fail a document.
+    Records a `runtime` block on the report: which family the architecture maps
+    to, the three-state Unsloth status (supported / unsupported / unknown), the
+    loader class, default LoRA targets, and — for decoder LLMs above the size
+    floor — a calibrated best-effort QLoRA VRAM *range*.
+
+    Backend coverage is informational and never invalidates a design. The one
+    runtime check that can be flagged is a declared `vram_estimate` invariant,
+    and only as a **warning** (the estimate is a calibrated heuristic, not a
+    guarantee) — promoted to an error only under `--strict`.
     """
-    # The QLoRA VRAM estimate here uses the same estimator (and the same
-    # defaults) as any Stage-4 `vram_estimate` invariant check, so the numbers
-    # match — this just always populates the field, even when no invariant was
-    # declared or earlier stages stopped before Stage 4.
     cap = capability.analyze(arch=arch, param_count=report.param_count)
     report.runtime = cap.to_dict()
+
+    invariants = [inv for inv in arch.invariants if inv.kind == "vram_estimate"]
+    if not invariants:
+        return
+    est = cap.vram_estimate
+    if est is None:
+        report.add_warning(
+            "VRAM_ESTIMATE_NOT_APPLICABLE",
+            f"a `vram_estimate` invariant is declared but no QLoRA estimate "
+            f"applies: {cap.vram_note}",
+            "remove the invariant, or apply it to a decoder-LLM architecture",
+        )
+        return
+    for inv in invariants:
+        # Compare the central estimate against the budget; surface the range so
+        # the reader sees the uncertainty rather than trusting a point value.
+        if not _compare(est.central_bytes, inv.op, inv.value):
+            report.add_warning(
+                "VRAM_BUDGET_EXCEEDED",
+                f"estimated QLoRA VRAM ~{est.central_gib} GiB "
+                f"(range {est.low_gib}–{est.high_gib} GiB) likely fails "
+                f"`vram_estimate {inv.op} {inv.value}` — calibrated estimate, "
+                f"not a guarantee",
+                "raise the budget, lower max_seq_length / batch_size / LoRA "
+                "rank, or pick a smaller base model — then measure to confirm",
+            )

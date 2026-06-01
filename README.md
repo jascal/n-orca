@@ -156,9 +156,9 @@ on that architecture (their preconditions wouldn't hold).
 | 1 — Naming      | every flow-edge endpoint resolves; one `[input]` and `[output]`; no duplicate layer names | `UNKNOWN_LAYER_REFERENCE`, `NO_INPUT_LAYER`, `DUPLICATE_LAYER` |
 | 2 — Structural  | DAG (no cycles); every layer reachable from an input; every layer reaches an output | `CYCLE_DETECTED`, `UNREACHABLE_LAYER`, `LAYER_NOT_REACHING_OUTPUT` |
 | 3 — Shape       | each layer's input shapes match its op's input rule; declared `shape:` matches inferred | `SHAPE_MISMATCH`, `INPUT_ARITY_MISMATCH`, `DECLARED_SHAPE_MISMATCH` |
-| 4 — Resource    | `param_count` / `depth` / `output_shape` / `vram_estimate` against `## invariants` | `PARAM_BUDGET_EXCEEDED`, `DEPTH_BUDGET_EXCEEDED`, `OUTPUT_SHAPE_INVARIANT`, `VRAM_BUDGET_EXCEEDED` |
+| 4 — Resource    | `param_count` / `depth` / `output_shape` against `## invariants` | `PARAM_BUDGET_EXCEEDED`, `DEPTH_BUDGET_EXCEEDED`, `OUTPUT_SHAPE_INVARIANT` |
 | 5 — Op coverage | every layer's op exists in the standard library (warning if not) | `UNKNOWN_OP` |
-| 6 — Runtime     | *informational:* which HF family this maps to, whether the Unsloth backend can fine-tune it, and a best-effort QLoRA VRAM estimate (never fails on its own) | — |
+| 6 — Runtime     | *informational, warnings only:* three-state Unsloth coverage + a calibrated QLoRA VRAM range; checks a `vram_estimate` invariant | `VRAM_BUDGET_EXCEEDED` (W), `VRAM_ESTIMATE_NOT_APPLICABLE` (W) |
 
 See [`docs/verification.md`](docs/verification.md) for the full error
 catalog with examples.
@@ -179,19 +179,29 @@ n-orca runtime examples/hf-generated/llama-7b.n.orca.md --gpu 24
 
 ```
 Architecture: Llama27bHf
-  Unsloth backend: yes (family=llama, loader=FastLanguageModel)
+  Unsloth backend: supported (family=llama, loader=FastLanguageModel)
+  Fast class:      FastLlamaModel
   Patched classes: LlamaAttention, LlamaDecoderLayer, LlamaModel
   LoRA targets:    q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj
-  Est. QLoRA VRAM: 5.25 GiB  (r=16, batch=1, seq=4096)
-  GPU budget 24.0 GB: FITS
+  Est. QLoRA VRAM: ~5.44 GiB  (range 4.08–7.62 GiB; r=16, batch=1, seq=4096)
+  GPU budget 24.0 GB: FITS (even pessimistically)
 ```
 
-It answers two questions from static config alone: **can the Unsloth backend
-fine-tune this** (decoder LLMs in the Llama lineage — Llama/Mistral/Qwen/Gemma/
-Phi/Mixtral — plus some VLMs; everything else reports `no` and falls back to the
-generic PyTorch path), and **roughly what does a 4-bit QLoRA fine-tune cost**.
-The VRAM number is a documented, best-effort estimate (±50%) — useful as a
-budget gate, declarable as an invariant:
+It answers two questions from static config alone:
+
+1. **Does the Unsloth backend fast-path this?** A *three-state* answer —
+   `supported` (a verified `model_type`: the Llama lineage — Llama/Mistral/Qwen/
+   Gemma/Cohere/Granite/Falcon-H1 — plus VLMs via `FastVisionModel`),
+   `unsupported` (structurally outside Unsloth's scope — encoder-only,
+   encoder-decoder, JEPA world models), or `unknown` (a recognized decoder LM
+   not in the verified snapshot, or a custom design). It does not guess; the
+   snapshot date is reported in `support_verified`.
+2. **Roughly what does a 4-bit QLoRA fine-tune cost?** A **range**
+   (low/central/high), produced only for decoder LLMs above a size floor, and
+   calibrated against published Unsloth benchmarks (Llama-3.1 8B/70B). It models
+   flash-attention + RAM-offloaded gradient checkpointing — treat it as a
+   planning gate, then measure. Declarable as an invariant (checked as a
+   **warning**, since it's a heuristic):
 
 ```markdown
 ## invariants
@@ -199,10 +209,11 @@ budget gate, declarable as an invariant:
 ```
 
 The same analysis is available over MCP (`check_runtime_capability`, which also
-accepts an HF `model_id`) and appears in the `runtime` block of every
-`verify --json` report. This is increment **A** of bringing Unsloth in as a
-train/serve backend; the train-recipe compiler and `train`/`export` tools build
-on it.
+accepts an HF `model_id`) and in the `runtime` block of every `verify --json`
+report. `n-orca hf convert` stamps the model's `model_type` into a `## runtime`
+section so the answer is authoritative (not a name guess) and round-trips. This
+is increment **A** of bringing Unsloth in as a train/serve backend; the
+train-recipe compiler and `train`/`export` tools build on it.
 
 ---
 

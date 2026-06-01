@@ -153,6 +153,8 @@ def _parse_document(doc_lines: list[tuple[int, str]]) -> Architecture:
             arch.invariants.extend(_parse_invariants(body))
         elif kind == "verification rules":
             arch.verification_rules.extend(_parse_verification_rules(body))
+        elif kind == "runtime":
+            arch.metadata.update(_parse_runtime(body))
         else:
             # Unknown section — silently ignore. The verifier can warn later.
             pass
@@ -384,4 +386,18 @@ def _parse_verification_rules(body: list[tuple[int, str]]) -> list[str]:
         bul = _BULLET_RE.match(line)
         if bul:
             out.append(bul.group(1).strip())
+    return out
+
+
+def _parse_runtime(body: list[tuple[int, str]]) -> dict[str, str]:
+    """Parse a `## runtime` section: `- key: value` provenance bullets."""
+    out: dict[str, str] = {}
+    for _, line in body:
+        bul = _BULLET_RE.match(line)
+        if not bul:
+            continue
+        text = bul.group(1).strip()
+        if ":" in text:
+            key, val = text.split(":", 1)
+            out[key.strip()] = val.strip()
     return out

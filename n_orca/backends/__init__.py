@@ -14,6 +14,7 @@ The verifier's Stage 6 (runtime) and the `check_runtime_capability` MCP tool bot
 go through `analyze`.
 """
 from n_orca.backends.capability import (
+    UNSLOTH_SUPPORT_VERIFIED,
     RuntimeCapability,
     SupportInfo,
     VramEstimate,
@@ -22,10 +23,13 @@ from n_orca.backends.capability import (
     estimate_lora_trainable_params,
     estimate_qlora_vram,
     family_of,
+    is_decoder_lm,
     support_for,
+    vram_applicable,
 )
 
 __all__ = [
+    "UNSLOTH_SUPPORT_VERIFIED",
     "RuntimeCapability",
     "SupportInfo",
     "VramEstimate",
@@ -34,5 +38,7 @@ __all__ = [
     "estimate_lora_trainable_params",
     "estimate_qlora_vram",
     "family_of",
+    "is_decoder_lm",
     "support_for",
+    "vram_applicable",
 ]

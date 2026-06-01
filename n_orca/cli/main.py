@@ -145,12 +145,16 @@ def _print_human_report(report) -> None:
     print(f"  Depth: {report.depth}")
     rt = report.runtime
     if rt:
-        backend = "Unsloth supported" if rt.get("unsloth_supported") else "no Unsloth fast path"
+        backend = {
+            "supported": "Unsloth supported",
+            "unsupported": "no Unsloth fast path",
+            "unknown": "Unsloth status unknown",
+        }.get(rt.get("unsloth_status"), "Unsloth status unknown")
         fam = rt.get("family") or "custom"
-        ve = rt.get("vram_estimate") or {}
+        ve = rt.get("vram_estimate")
         vram = (
-            f" · est. QLoRA VRAM {ve.get('total_gib')} GiB"
-            if ve.get("total_gib") is not None else ""
+            f" · est. QLoRA VRAM ~{ve['central_gib']} GiB ({ve['low_gib']}–{ve['high_gib']})"
+            if ve else ""
         )
         print(f"  Runtime: {backend} ({fam}){vram}")
     for err in report.errors:
@@ -257,9 +261,10 @@ def _cmd_runtime(args) -> int:
 
 def _print_capability(name: str, cap) -> None:
     print(f"Architecture: {name}")
-    supported = "yes" if cap.unsloth_supported else "no"
     loader = f", loader={cap.loader}" if cap.loader else ""
-    print(f"  Unsloth backend: {supported} (family={cap.family or 'custom'}{loader})")
+    print(f"  Unsloth backend: {cap.unsloth_status} (family={cap.family or 'custom'}{loader})")
+    if cap.fast_class:
+        print(f"  Fast class:      {cap.fast_class}")
     if cap.patched_classes:
         print(f"  Patched classes: {', '.join(cap.patched_classes)}")
     if cap.default_target_modules:
@@ -268,12 +273,19 @@ def _print_capability(name: str, cap) -> None:
     if ve is not None:
         a = ve.assumptions
         print(
-            f"  Est. QLoRA VRAM: {ve.total_gib} GiB"
-            f"  (r={a['lora_r']}, batch={a['batch_size']}, seq={a['max_seq_length']})"
+            f"  Est. QLoRA VRAM: ~{ve.central_gib} GiB"
+            f"  (range {ve.low_gib}–{ve.high_gib} GiB;"
+            f" r={a['lora_r']}, batch={a['batch_size']}, seq={a['max_seq_length']})"
         )
-    if cap.gpu_memory_gb is not None:
-        fit = "FITS" if cap.fits_in_gpu else "DOES NOT FIT"
-        print(f"  GPU budget {cap.gpu_memory_gb} GB: {fit}")
+        if cap.gpu_memory_gb is not None:
+            verdict = (
+                "FITS (even pessimistically)" if cap.fits_confidently
+                else "LIKELY FITS" if cap.fits_in_gpu
+                else "LIKELY DOES NOT FIT"
+            )
+            print(f"  GPU budget {cap.gpu_memory_gb} GB: {verdict}")
+    else:
+        print(f"  Est. QLoRA VRAM: n/a — {cap.vram_note}")
     print(f"  Note: {cap.note}")
     print()
 

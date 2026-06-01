@@ -108,13 +108,14 @@ def test_check_runtime_capability_from_path_via_mcp():
     data = _run(_with_session(_go))
     assert "error" not in data, data.get("error")
     cap = data["capabilities"][0]
-    # A plain MLP is a custom architecture — no Unsloth fast path.
-    assert cap["unsloth_supported"] is False
-    assert cap["vram_estimate"]["total_gib"] > 0
+    # A plain MLP is a custom architecture — status unknown, no QLoRA estimate.
+    assert cap["unsloth_status"] == "unknown"
+    assert cap["vram_estimate"] is None
 
 
 def test_check_runtime_capability_from_local_config_via_mcp(tmp_path):
-    """A local gpt2 config.json — gpt2 is a known but unsupported family."""
+    """A local gpt2 config.json — gpt2 is a decoder LM whose Unsloth status is
+    `unknown` in our snapshot; this tiny config is below the estimate floor."""
     cfg = {
         "model_type": "gpt2",
         "n_embd": 32, "n_layer": 1, "n_head": 4, "n_inner": 64,
@@ -134,8 +135,9 @@ def test_check_runtime_capability_from_local_config_via_mcp(tmp_path):
     assert "error" not in data, data.get("error")
     cap = data["capabilities"][0]
     assert cap["model_type"] == "gpt2"
-    assert cap["unsloth_supported"] is False
-    assert cap["fits_in_gpu"] is True
+    assert cap["unsloth_status"] == "unknown"
+    assert cap["is_decoder_lm"] is True
+    assert cap["vram_estimate"] is None       # tiny config is below the size floor
 
 
 def test_convert_from_hf_with_inline_config_via_mcp(tmp_path):
