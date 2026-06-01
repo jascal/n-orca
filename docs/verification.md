@@ -31,7 +31,34 @@ Severity column: `E` = error (architecture is invalid); `W` = warning
 | `DEPTH_BUDGET_EXCEEDED` | 4 | E | longest path exceeds `depth <=` | shorten chain, or relax invariant |
 | `OUTPUT_SHAPE_INVARIANT` | 4 | E | inferred output shape differs from `## invariants` | adjust architecture or invariant |
 | `FLOPS_NOT_IMPLEMENTED` | 4 | W | `flops` invariants are accepted but not enforced | remove the invariant, or use an external profiler |
+| `VRAM_BUDGET_EXCEEDED` | 4 | E | estimated QLoRA VRAM exceeds `vram_estimate <=` | raise the budget, lower `max_seq_length`/batch/LoRA rank, or pick a smaller base model |
 | `UNKNOWN_OP` | 5 | W | layer uses an op not in the standard library | pick a standard op, or accept the placeholder and supply a custom module in the host |
+
+## Stage 6 — Runtime (informational)
+
+Stage 6 does not produce error codes. It records a `runtime` block on every
+report — which HF model family the architecture maps to, whether the
+[Unsloth](https://github.com/unslothai/unsloth) runtime backend can load and
+fine-tune it (and via which loader / patched classes), the default LoRA target
+modules, and a **best-effort** 4-bit QLoRA GPU-memory estimate. Backend
+coverage is *reported, not required*: a custom architecture with no Unsloth
+fast path is still a valid design.
+
+The one runtime check that can fail a document is the `vram_estimate` invariant
+(Stage 4, `VRAM_BUDGET_EXCEEDED` above) — declare a budget with
+`- vram_estimate <= 24G` and the estimator is checked against it. The estimate
+is pure static analysis (no torch / transformers / unsloth import, no GPU);
+treat it as ±50%, useful as a budget gate rather than a guarantee.
+
+```json
+"runtime": {
+  "model_type": "llama", "family": "llama", "unsloth_supported": true,
+  "loader": "FastLanguageModel",
+  "patched_classes": ["LlamaAttention", "LlamaDecoderLayer", "LlamaModel"],
+  "default_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+  "vram_estimate": {"total_gib": 5.25, "breakdown_gib": {"base_4bit": 2.47, ...}, "assumptions": {...}}
+}
+```
 
 ## How the LLM should consume errors
 

@@ -120,6 +120,9 @@ n-orca compile pytorch  examples/transformer-block.n.orca.md --out model.py
 
 # Summarize
 n-orca info examples/transformer-block.n.orca.md
+
+# Runtime backend coverage + QLoRA VRAM estimate (no GPU / no torch needed)
+n-orca runtime examples/hf-generated/llama-7b.n.orca.md --gpu 24
 ```
 
 Sample verify output:
@@ -153,11 +156,53 @@ on that architecture (their preconditions wouldn't hold).
 | 1 — Naming      | every flow-edge endpoint resolves; one `[input]` and `[output]`; no duplicate layer names | `UNKNOWN_LAYER_REFERENCE`, `NO_INPUT_LAYER`, `DUPLICATE_LAYER` |
 | 2 — Structural  | DAG (no cycles); every layer reachable from an input; every layer reaches an output | `CYCLE_DETECTED`, `UNREACHABLE_LAYER`, `LAYER_NOT_REACHING_OUTPUT` |
 | 3 — Shape       | each layer's input shapes match its op's input rule; declared `shape:` matches inferred | `SHAPE_MISMATCH`, `INPUT_ARITY_MISMATCH`, `DECLARED_SHAPE_MISMATCH` |
-| 4 — Resource    | `param_count` / `depth` / `output_shape` against `## invariants` | `PARAM_BUDGET_EXCEEDED`, `DEPTH_BUDGET_EXCEEDED`, `OUTPUT_SHAPE_INVARIANT` |
+| 4 — Resource    | `param_count` / `depth` / `output_shape` / `vram_estimate` against `## invariants` | `PARAM_BUDGET_EXCEEDED`, `DEPTH_BUDGET_EXCEEDED`, `OUTPUT_SHAPE_INVARIANT`, `VRAM_BUDGET_EXCEEDED` |
 | 5 — Op coverage | every layer's op exists in the standard library (warning if not) | `UNKNOWN_OP` |
+| 6 — Runtime     | *informational:* which HF family this maps to, whether the Unsloth backend can fine-tune it, and a best-effort QLoRA VRAM estimate (never fails on its own) | — |
 
 See [`docs/verification.md`](docs/verification.md) for the full error
 catalog with examples.
+
+---
+
+## Runtime backend awareness
+
+N-Orca describes architectures; the [Unsloth](https://github.com/unslothai/unsloth)
+runtime *loads, fine-tunes, and serves* a curated set of HuggingFace model
+families. The two meet at the `model_type` key both dispatch on. Stage 6 of the
+verifier makes a design **runtime-aware** — without importing torch /
+transformers / unsloth or touching a GPU:
+
+```bash
+n-orca runtime examples/hf-generated/llama-7b.n.orca.md --gpu 24
+```
+
+```
+Architecture: Llama27bHf
+  Unsloth backend: yes (family=llama, loader=FastLanguageModel)
+  Patched classes: LlamaAttention, LlamaDecoderLayer, LlamaModel
+  LoRA targets:    q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj
+  Est. QLoRA VRAM: 5.25 GiB  (r=16, batch=1, seq=4096)
+  GPU budget 24.0 GB: FITS
+```
+
+It answers two questions from static config alone: **can the Unsloth backend
+fine-tune this** (decoder LLMs in the Llama lineage — Llama/Mistral/Qwen/Gemma/
+Phi/Mixtral — plus some VLMs; everything else reports `no` and falls back to the
+generic PyTorch path), and **roughly what does a 4-bit QLoRA fine-tune cost**.
+The VRAM number is a documented, best-effort estimate (±50%) — useful as a
+budget gate, declarable as an invariant:
+
+```markdown
+## invariants
+- vram_estimate <= 24G
+```
+
+The same analysis is available over MCP (`check_runtime_capability`, which also
+accepts an HF `model_id`) and appears in the `runtime` block of every
+`verify --json` report. This is increment **A** of bringing Unsloth in as a
+train/serve backend; the train-recipe compiler and `train`/`export` tools build
+on it.
 
 ---
 

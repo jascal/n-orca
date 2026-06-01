@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from n_orca import __version__
+from n_orca.backends import capability
 from n_orca.compiler import compile_mermaid, compile_pytorch
 from n_orca.parser import parse_file, ParseError
 from n_orca.verifier import verify
@@ -35,6 +36,21 @@ def main(argv: list[str] | None = None) -> int:
 
     p_info = subs.add_parser("info", help="summarize an architecture")
     p_info.add_argument("file", type=Path)
+
+    p_runtime = subs.add_parser(
+        "runtime",
+        help="report Unsloth backend coverage + QLoRA VRAM estimate",
+    )
+    p_runtime.add_argument("file", type=Path)
+    p_runtime.add_argument("--gpu", type=float, default=None,
+                           help="GPU memory budget in GB (reports whether it fits)")
+    p_runtime.add_argument("--lora-r", type=int, default=16, dest="lora_r",
+                           help="LoRA rank assumption (default 16)")
+    p_runtime.add_argument("--batch", type=int, default=1,
+                           help="batch-size assumption (default 1)")
+    p_runtime.add_argument("--seq", type=int, default=None,
+                           help="max sequence length assumption")
+    p_runtime.add_argument("--json", action="store_true")
 
     p_hf = subs.add_parser("hf", help="Hugging Face Hub operations")
     hf_subs = p_hf.add_subparsers(dest="hf_cmd", required=True)
@@ -87,6 +103,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_compile(args)
     if args.cmd == "info":
         return _cmd_info(args)
+    if args.cmd == "runtime":
+        return _cmd_runtime(args)
     if args.cmd == "hf":
         return _cmd_hf(args)
     return 2
@@ -125,6 +143,16 @@ def _print_human_report(report) -> None:
     print(f"  Result: {head}")
     print(f"  Parameters: {report.param_count:,}")
     print(f"  Depth: {report.depth}")
+    rt = report.runtime
+    if rt:
+        backend = "Unsloth supported" if rt.get("unsloth_supported") else "no Unsloth fast path"
+        fam = rt.get("family") or "custom"
+        ve = rt.get("vram_estimate") or {}
+        vram = (
+            f" · est. QLoRA VRAM {ve.get('total_gib')} GiB"
+            if ve.get("total_gib") is not None else ""
+        )
+        print(f"  Runtime: {backend} ({fam}){vram}")
     for err in report.errors:
         line = f"  [ERR]  {err.code}: {err.message}"
         print(line)
@@ -195,6 +223,59 @@ def _cmd_info(args) -> int:
         print(f"  Depth: {report.depth}")
         print()
     return 0
+
+
+def _cmd_runtime(args) -> int:
+    try:
+        archs = parse_file(args.file)
+    except (ParseError, FileNotFoundError) as ex:
+        print(f"error: {ex}", file=sys.stderr)
+        return 1
+
+    caps = []
+    for arch in archs:
+        report = verify(arch)
+        cap = capability.analyze(
+            arch=arch,
+            param_count=report.param_count,
+            lora_r=args.lora_r,
+            batch_size=args.batch,
+            max_seq_length=args.seq,
+            gpu_memory_gb=args.gpu,
+        )
+        caps.append((arch.name, cap))
+
+    if args.json:
+        payload = [{"architecture": name, **cap.to_dict()} for name, cap in caps]
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    for name, cap in caps:
+        _print_capability(name, cap)
+    return 0
+
+
+def _print_capability(name: str, cap) -> None:
+    print(f"Architecture: {name}")
+    supported = "yes" if cap.unsloth_supported else "no"
+    loader = f", loader={cap.loader}" if cap.loader else ""
+    print(f"  Unsloth backend: {supported} (family={cap.family or 'custom'}{loader})")
+    if cap.patched_classes:
+        print(f"  Patched classes: {', '.join(cap.patched_classes)}")
+    if cap.default_target_modules:
+        print(f"  LoRA targets:    {', '.join(cap.default_target_modules)}")
+    ve = cap.vram_estimate
+    if ve is not None:
+        a = ve.assumptions
+        print(
+            f"  Est. QLoRA VRAM: {ve.total_gib} GiB"
+            f"  (r={a['lora_r']}, batch={a['batch_size']}, seq={a['max_seq_length']})"
+        )
+    if cap.gpu_memory_gb is not None:
+        fit = "FITS" if cap.fits_in_gpu else "DOES NOT FIT"
+        print(f"  GPU budget {cap.gpu_memory_gb} GB: {fit}")
+    print(f"  Note: {cap.note}")
+    print()
 
 
 def _cmd_hf(args) -> int:

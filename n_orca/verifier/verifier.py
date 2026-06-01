@@ -6,18 +6,25 @@ Five stages, in order:
 2. Structural  — DAG, reachability, every layer reaches an output
 3. Shape       — input shapes to each layer match its op's input rule;
                   declared shapes match inferred
-4. Resource    — `param_count` / `flops` / `depth` / `output_shape` invariants
+4. Resource    — `param_count` / `flops` / `depth` / `output_shape` /
+                  `vram_estimate` invariants
 5. Op          — every layer has a known op (or warning for unknown)
+6. Runtime     — informational: can the Unsloth runtime backend load + fine-tune
+                  this, and roughly what does a QLoRA fine-tune cost? (Populates
+                  `report.runtime`; never fails on its own — backend coverage is
+                  reported, not required.)
 
 A failure in an earlier stage prevents later stages from running on that
-architecture, since their preconditions would not hold.
+architecture, since their preconditions would not hold. Stages 5 and 6 have no
+preconditions and always run.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Iterable
+from typing import Any, Iterable
 
 from n_orca.ast import Architecture, Layer
+from n_orca.backends import capability
 from n_orca.ops import get_op, op_names, UnknownOpError, ShapeRuleError
 
 
@@ -43,6 +50,7 @@ class VerificationReport:
     inferred_shapes: dict[str, tuple[str, ...]] = field(default_factory=dict)
     param_count: int = 0
     depth: int = 0
+    runtime: dict[str, Any] = field(default_factory=dict)
 
     def add_error(self, code: str, message: str, suggestion: str | None = None) -> None:
         self.errors.append(VerificationError(code=code, message=message, suggestion=suggestion))
@@ -62,6 +70,7 @@ class VerificationReport:
             "param_count": self.param_count,
             "depth": self.depth,
             "inferred_shapes": {k: list(v) for k, v in self.inferred_shapes.items()},
+            "runtime": self.runtime,
         }
 
 
@@ -79,6 +88,8 @@ def verify(arch: Architecture, *, strict: bool = False) -> VerificationReport:
             _stage_resources(arch, report)
     # Stage 5 — Op coverage warnings always run, no dependency.
     _stage_ops(arch, report)
+    # Stage 6 — Runtime backend coverage + QLoRA VRAM estimate (informational).
+    _stage_runtime(arch, report)
 
     if strict and report.warnings:
         for w in report.warnings:
@@ -462,6 +473,24 @@ def _stage_resources(arch: Architecture, report: VerificationReport) -> None:
                         f"output {out.name!r} shape {inferred} != declared invariant {tuple(inv.value)}",  # type: ignore[arg-type]
                         "adjust the architecture so the final output matches the invariant",
                     )
+        elif inv.kind == "vram_estimate":
+            # Estimate peak GPU memory for a 4-bit QLoRA fine-tune and check it
+            # against the declared budget (bytes; write the bound as e.g.
+            # `vram_estimate <= 24G`). Best-effort — see backends.capability.
+            hparams = {hp.name: hp.default for hp in arch.hyperparameters}
+            est = capability.estimate_qlora_vram(
+                param_count=total_params, hyperparameters=hparams,
+            )
+            report.runtime["vram_estimate"] = est.to_dict()
+            if not _compare(est.total_bytes, inv.op, inv.value):
+                report.add_error(
+                    "VRAM_BUDGET_EXCEEDED",
+                    f"estimated QLoRA VRAM = {est.total_gib} GiB"
+                    f" ({est.total_bytes} bytes) fails"
+                    f" `vram_estimate {inv.op} {inv.value}`",
+                    "raise the budget, lower max_seq_length / batch_size / LoRA"
+                    " rank, or pick a smaller base model",
+                )
         elif inv.kind == "flops":
             # Best-effort: skip — FLOPs estimation is out of scope for v0.1.
             report.add_warning(
@@ -579,3 +608,26 @@ def _stage_ops(arch: Architecture, report: VerificationReport) -> None:
                 f"either pick from the standard library ({', '.join(op_names())})"
                 f" or implement it as a custom module in the host code",
             )
+
+
+# --------------------------------------------------------------------------- #
+#  Stage 6 — Runtime backend coverage (informational)
+# --------------------------------------------------------------------------- #
+
+
+def _stage_runtime(arch: Architecture, report: VerificationReport) -> None:
+    """Report what the Unsloth runtime backend can do with this architecture.
+
+    Purely informational: it records a `runtime` block on the report (which
+    family the architecture maps to, whether Unsloth fast-paths it, the loader
+    class, default LoRA targets, and a best-effort QLoRA VRAM estimate). It
+    never adds errors — a custom architecture with no Unsloth fast path is a
+    perfectly valid design; the `vram_estimate` invariant (Stage 4) is the only
+    runtime check that can fail a document.
+    """
+    # The QLoRA VRAM estimate here uses the same estimator (and the same
+    # defaults) as any Stage-4 `vram_estimate` invariant check, so the numbers
+    # match — this just always populates the field, even when no invariant was
+    # declared or earlier stages stopped before Stage 4.
+    cap = capability.analyze(arch=arch, param_count=report.param_count)
+    report.runtime = cap.to_dict()

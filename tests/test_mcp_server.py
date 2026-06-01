@@ -59,6 +59,7 @@ def test_list_tools_includes_core_set():
     expected = {
         "list_architectures", "hf_search", "hf_info", "convert_from_hf",
         "verify_markdown", "compile_mermaid", "compile_pytorch", "render_markdown",
+        "check_runtime_capability",
     }
     assert expected.issubset(names)
 
@@ -95,6 +96,46 @@ def test_compile_mermaid_via_mcp():
 
     data = _run(_with_session(_go))
     assert "flowchart TD" in data["mermaid"][0]
+
+
+def test_check_runtime_capability_from_path_via_mcp():
+    async def _go(session):
+        result = await session.call_tool("check_runtime_capability", {
+            "path": str(REPO_ROOT / "examples" / "simple-mlp.n.orca.md"),
+        })
+        return json.loads(result.content[0].text)
+
+    data = _run(_with_session(_go))
+    assert "error" not in data, data.get("error")
+    cap = data["capabilities"][0]
+    # A plain MLP is a custom architecture — no Unsloth fast path.
+    assert cap["unsloth_supported"] is False
+    assert cap["vram_estimate"]["total_gib"] > 0
+
+
+def test_check_runtime_capability_from_local_config_via_mcp(tmp_path):
+    """A local gpt2 config.json — gpt2 is a known but unsupported family."""
+    cfg = {
+        "model_type": "gpt2",
+        "n_embd": 32, "n_layer": 1, "n_head": 4, "n_inner": 64,
+        "n_positions": 16, "vocab_size": 100,
+    }
+    cfg_path = tmp_path / "config.json"
+    cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
+
+    async def _go(session):
+        result = await session.call_tool("check_runtime_capability", {
+            "model_id": str(cfg_path),
+            "gpu_memory_gb": 24,
+        })
+        return json.loads(result.content[0].text)
+
+    data = _run(_with_session(_go))
+    assert "error" not in data, data.get("error")
+    cap = data["capabilities"][0]
+    assert cap["model_type"] == "gpt2"
+    assert cap["unsloth_supported"] is False
+    assert cap["fits_in_gpu"] is True
 
 
 def test_convert_from_hf_with_inline_config_via_mcp(tmp_path):

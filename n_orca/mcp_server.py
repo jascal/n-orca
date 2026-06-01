@@ -17,6 +17,7 @@ Tools exposed:
 - verify_markdown         — verify a .n.orca.md string or file
 - compile_mermaid         — emit a Mermaid diagram
 - compile_pytorch         — emit a runnable nn.Module
+- check_runtime_capability — can the Unsloth backend train this? + QLoRA VRAM est.
 """
 from __future__ import annotations
 
@@ -27,6 +28,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from n_orca import __version__, sae as _sae, world_models as _wm
+from n_orca.backends import capability as _capability
 from n_orca.compiler import compile_mermaid as _compile_mermaid, compile_pytorch as _compile_pytorch
 from n_orca.hf import HfClient, HfClientError, convert as _convert, UnsupportedModelError
 from n_orca.hf.adapters import list_adapters
@@ -232,6 +234,97 @@ def render_markdown(source: str | None = None, path: str | None = None) -> dict[
     except FileNotFoundError as ex:
         return {"error": str(ex)}
     return {"markdown": [render(a) for a in archs]}
+
+
+@app.tool()
+def check_runtime_capability(
+    source: str | None = None,
+    path: str | None = None,
+    model_id: str | None = None,
+    revision: str | None = None,
+    gpu_memory_gb: float | None = None,
+    lora_r: int = 16,
+    batch_size: int = 1,
+    max_seq_length: int | None = None,
+) -> dict[str, Any]:
+    """Report whether the Unsloth runtime backend can load + fine-tune an
+    architecture, and estimate its 4-bit QLoRA GPU-memory footprint.
+
+    This makes the design loop runtime-aware *without* importing torch /
+    transformers / unsloth or touching a GPU — it is pure static analysis over
+    config / the n-orca AST. Use it to answer "is this trainable on my GPU via
+    Unsloth, and at what cost?" before committing to a fine-tune.
+
+    Provide exactly one source of architecture(s):
+        - `model_id`: an HF Hub id (reads config.json only) or local config path.
+        - `source`:   a `.n.orca.md` document string.
+        - `path`:     a `.n.orca.md` file on disk.
+
+    Args:
+        gpu_memory_gb: if given, also report whether the QLoRA estimate fits.
+        lora_r: LoRA rank assumption for the trainable-param / VRAM estimate.
+        batch_size / max_seq_length: training assumptions for the activation term.
+
+    Returns a `capabilities` list (one entry per architecture) — each carries
+    the detected model_type / family, whether Unsloth fast-paths it, the loader
+    class (FastLanguageModel / FastVisionModel), default LoRA target modules, and
+    a documented best-effort QLoRA VRAM breakdown. Backend coverage is reported,
+    not required: a custom architecture simply reports `unsloth_supported=false`.
+    """
+    provided = [x for x in (model_id, source, path) if x]
+    if len(provided) != 1:
+        return {"error": "provide exactly one of `model_id`, `source`, or `path`"}
+
+    analyze_kw = dict(
+        lora_r=lora_r, batch_size=batch_size,
+        max_seq_length=max_seq_length, gpu_memory_gb=gpu_memory_gb,
+    )
+
+    if model_id:
+        # Read config.json only (no weights / remote code), build the AST, and
+        # use the verifier's param_count for the base-weight footprint. The
+        # config's own model_type is the most precise capability signal. Accept
+        # an HF Hub id or a local config.json path.
+        local = Path(model_id)
+        try:
+            if model_id.endswith(".json") and local.is_file():
+                config = json.loads(local.read_text(encoding="utf-8"))
+            else:
+                config = HfClient().download_config(model_id, revision=revision)
+            result = _convert(config, name=None)
+        except (UnsupportedModelError, HfClientError) as ex:
+            return {"error": str(ex)}
+        except (OSError, ValueError) as ex:
+            return {"error": f"could not load config: {ex}"}
+        cap = _capability.analyze(
+            arch=result.architecture,
+            model_type=config.get("model_type"),
+            param_count=result.report.param_count,
+            **analyze_kw,
+        )
+        entry = cap.to_dict()
+        entry["architecture_name"] = result.architecture.name
+        entry["model_id"] = model_id
+        return {"capabilities": [entry]}
+
+    try:
+        archs = _resolve(source=source, path=path)
+    except ParseError as ex:
+        return {"error": f"parse error: {ex}"}
+    except FileNotFoundError as ex:
+        return {"error": str(ex)}
+
+    out: list[dict[str, Any]] = []
+    for arch in archs:
+        rep = verify(arch)
+        cap = _capability.analyze(
+            arch=arch, param_count=rep.param_count, **analyze_kw,
+        )
+        entry = cap.to_dict()
+        entry["architecture_name"] = arch.name
+        entry["valid"] = rep.valid
+        out.append(entry)
+    return {"capabilities": out}
 
 
 @app.tool()
