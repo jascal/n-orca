@@ -42,6 +42,7 @@ When working as an agent, prefer using the skills and MCP tools over raw shell w
 - Optional extras: `[torch]`, `[hf]`, `[mcp]`.
 - Strong alignment with **econ-sae** (world models as SAE substrates, advanced SAE variants for conjunctive/regime recovery).
 - Intended to be the canonical source for architecture definitions used by econ-sae, sm-sae, polygram, sae-forge.
+- q-orca-kb now has a dedicated `n-orca-lang` room (in the `q-orca-implementations` wing) for indexing n-orca docs, source, examples, and related papers (via deepwiki crawl + local files). Agents can use the q-orca-kb MCP (search_papers with room filter, crawl_site "n-orca-lang-wiki", etc.) for grounded knowledge.
 - When adding builders or changing the surface, update examples, tests, the MCP tool, and the skills.
 
 ## File Layout (key parts)

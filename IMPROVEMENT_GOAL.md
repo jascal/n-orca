@@ -179,3 +179,16 @@ Next scheduled ~3h (or manual "run next improvement cycle"). All rules followed 
 - Per review: "Solid continuation of the handoff — looking forward to the next refinements (full GRU, shape inference..., integration examples)."
 
 All per safety (tests/examples re-verified after edits), SDLC (branch/push/merge via gh for the PR), and goal process.
+
+**2026-06-03 (q-orca-kb expansion: n-orca-lang room)**:
+- Coordinated with user to expand the shared q-orca-kb (now beyond pure quantum, with orca-lang / q-orca-lang rooms) to include an `n-orca-lang` room under `q-orca-implementations` wing.
+- Added `n-orca-lang-wiki` CrawlConfig in q-orca-kb/q_orca_kb/crawlers/site_configs.py (deepwiki.com/jascal/n-orca seed, same patterns as siblings, room="n-orca-lang").
+- Updated tests (test_mcp_crawl_site.py) and tool descriptions in q-orca-kb MCP.
+- Seeded the room immediately with comprehensive local content via direct indexer: all main .py modules (world_models with temporal, sae, ops, verifier, compiler, mcp_server, hf adapters, parser, render, ast), docs (README, AGENTS, IMPROVEMENT_GOAL, grammar, proposed-sae-extensions, verification), and all examples (.n.orca.md + .mmd).
+- Ran the new crawl_site-equivalent for n-orca-lang-wiki (partial due to DeepWiki JS "Loading..." pages; main page indexed).
+- Result: 62 sources, 533 drawers in the room. Semantic search works well for n-orca concepts (temporal_world_model, build_world_model, hidden_update, etc.).
+- Updated n-orca/AGENTS.md to document the new KB integration for agents.
+- Note: MCP stdio transport for q-orca-kb was closed in this session after process management (doctor can start fresh instances; Claude agent informed and will drive crawls via its MCP connection). Direct Python access to the palace works. Full crawl via MCP "n-orca-lang-wiki" can be triggered by Claude or future cycles.
+- This makes n-orca first-class in the shared Orca-family knowledge base for papers, docs, and cross-project grounding.
+
+Next scheduled ~3h (or manual "run next improvement cycle"). All rules followed.
