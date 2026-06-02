@@ -1,7 +1,7 @@
 ## 1. Research & Design
 
-- [ ] 1.1 Review econ-sae TemporalWorldModel implementation (GRU or hidden state carry across periods)
-- [ ] 1.2 Decide on n-orca representation: per-step graph with explicit `hidden` tensor in context vs. unrolled steps vs. custom "RecurrentCell" op
+- [x] 1.1 Review econ-sae TemporalWorldModel implementation (GRU or hidden state carry across periods) -- done read-only during impl cycle + subagent context
+- [x] 1.2 Decide on n-orca representation: per-step graph with explicit `hidden` tensor in context vs. unrolled steps vs. custom "RecurrentCell" op -- decided on explicit hidden_in/out + external carry (per design + PR)
 - [x] 1.3 Update design.md for the chosen approach (reference proposal)  -- Created initial design.md based on proposal + acceptance criteria (per-step explicit hidden state + attn composition). See design.md.
 
 ## 2. Implementation
