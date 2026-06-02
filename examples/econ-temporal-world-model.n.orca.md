@@ -57,25 +57,25 @@
 
 ## layer y [output]
 
-## layer state_update
+## layer hidden_update
 - op: Linear(gru_hidden, gru_hidden)
 
 ## layer hidden_out [output]
 
 ## flow
 
-| Source       | Target       | Tensor   |
-|--------------|--------------|----------|
-| x            | embed        | x        |
-| embed        | attn         | tokens   |
-| attn         | add_attn     | attn_out |
-| embed        | add_attn     | tok_skip |
-| add_attn     | ln           | r        |
-| ln           | fc1          | r_n      |
-| fc1          | act1         | z1       |
-| act1         | fc2          | h1       |
-| fc2          | act2         | z2       |
-| act2         | head         | h2       |
-| head         | y            | y_hat    |
-| hidden_in    | state_update | h_in     |
-| state_update | hidden_out   | h_out    |
+| Source        | Target        | Tensor   |
+|---------------|---------------|----------|
+| x             | embed         | x        |
+| embed         | attn          | tokens   |
+| attn          | add_attn      | attn_out |
+| embed         | add_attn      | tok_skip |
+| add_attn      | ln            | r        |
+| ln            | fc1           | r_n      |
+| fc1           | act1          | z1       |
+| act1          | fc2           | h1       |
+| fc2           | act2          | z2       |
+| act2          | head          | h2       |
+| head          | y             | y_hat    |
+| hidden_in     | hidden_update | h_in     |
+| hidden_update | hidden_out    | h_out    |

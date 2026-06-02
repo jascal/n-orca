@@ -12,7 +12,7 @@ flowchart TD
     act2["act2<br/>ReLU()"]
     head["head<br/>Linear(h2_dim, out_dim)"]
     y(("y<br/>[output]"))
-    state_update["state_update<br/>Linear(gru_hidden, gru_hidden)"]
+    hidden_update["hidden_update<br/>Linear(gru_hidden, gru_hidden)"]
     hidden_out(("hidden_out<br/>[output]"))
     x -- "x : (B,N,input_dim)" --> embed
     embed -- "tokens : (B,N,embed_dim)" --> attn
@@ -25,8 +25,8 @@ flowchart TD
     fc2 -- "z2 : (B,N,h2_dim)" --> act2
     act2 -- "h2 : (B,N,h2_dim)" --> head
     head -- "y_hat : (B,N,out_dim)" --> y
-    hidden_in -- "h_in : (B,N,gru_hidden)" --> state_update
-    state_update -- "h_out : (B,N,gru_hidden)" --> hidden_out
+    hidden_in -- "h_in : (B,N,gru_hidden)" --> hidden_update
+    hidden_update -- "h_out : (B,N,gru_hidden)" --> hidden_out
     classDef input fill:#dbeafe,stroke:#1e40af,color:#1e3a8a;
     class x,hidden_in input;
     classDef output fill:#dcfce7,stroke:#166534,color:#14532d;

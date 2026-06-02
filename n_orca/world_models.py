@@ -237,7 +237,9 @@ def temporal_world_model(
     Based on econ-sae TemporalWorldModel (attn + GRU) and the design in the OpenSpec change:
     - Same attn + residual + LN + MLP structure as attn_world_model for per-period cross-agent context.
     - Explicit 'hidden_in' / 'hidden_out' tensors (shape (B, N, gru_hidden)) for temporal state.
-    - Simple linear state update as starting point (full GRU-like can be refined later or in PyTorch side).
+    - Simple linear `hidden_update` as starting point. Full recurrent logic (e.g. actual GRU cell with
+      reset/update gates) is planned for a follow-up refinement (may live in the PyTorch emission or a
+      future builder variant).
     - The h1 (post-attn) remains the SAE substrate; state allows encoding regime features over time.
 
     The Architecture is a DAG; recurrence is handled externally by carrying hidden across steps.
@@ -283,8 +285,9 @@ def temporal_world_model(
     arch.layers.append(Layer(name="head", op=OpCall("Linear", ["h2_dim", "out_dim"])))
     arch.layers.append(Layer(name="y", is_output=True))
 
-    # Explicit state carry path (simple linear update as initial temporal mechanism)
-    arch.layers.append(Layer(name="state_update", op=OpCall("Linear", ["gru_hidden", "gru_hidden"])))
+    # Explicit state carry path (simple linear hidden_update as initial temporal mechanism;
+    # full GRU planned as follow-up per design)
+    arch.layers.append(Layer(name="hidden_update", op=OpCall("Linear", ["gru_hidden", "gru_hidden"])))
     arch.layers.append(Layer(name="hidden_out", is_output=True))
 
     # Flow for main prediction path (x -> y via attn)
@@ -304,8 +307,8 @@ def temporal_world_model(
 
     # Flow for state carry (hidden_in -> hidden_out)
     arch.flow.extend([
-        FlowEdge("hidden_in", "state_update", "h_in"),
-        FlowEdge("state_update", "hidden_out", "h_out"),
+        FlowEdge("hidden_in", "hidden_update", "h_in"),
+        FlowEdge("hidden_update", "hidden_out", "h_out"),
     ])
 
     # Note: no single output_shape invariant because we have y (out_dim) and hidden_out (gru_hidden)

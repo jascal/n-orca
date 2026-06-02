@@ -188,6 +188,12 @@ def test_temporal_world_model_has_state_tensors():
     tensor_names = {t.name for t in arch.tensors}
     assert "hidden_in" in tensor_names
     assert "hidden_out" in tensor_names
+    # Assert shape/dim for hidden_out (and implicitly hidden_in) per PR #3 review nit
+    h_out = next(t for t in arch.tensors if t.name == "hidden_out")
+    assert h_out.shape == ("B", "N", "gru_hidden")
+    # The call-time dim value is recorded in hyperparameters (as .default)
+    hypers = {h.name: h.default for h in arch.hyperparameters}
+    assert hypers.get("gru_hidden") == 32
     # Should have MultiHeadAttention from the per-period attn path
     ops = {ly.op.name for ly in arch.layers if ly.op}
     assert "MultiHeadAttention" in ops
