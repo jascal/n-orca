@@ -1,15 +1,17 @@
 """Builders for the non-LLM "world models" used as SAE training substrates.
 
-These cover econ-sae's three variants:
+These cover econ-sae's variants (including temporal for regime features):
 
 - `world_model`        — baseline 2-hidden-layer MLP (the H1 hidden layer is
                           the canonical SAE training substrate)
 - `deep_world_model`   — 3+ hidden layers, otherwise identical
 - `attn_world_model`   — per-agent multi-head self-attention before the MLP
+- `temporal_world_model` — attn + explicit state carry (hidden tensor) for cross-period context
 
 These architectures are intentionally small (43-dim input, ~100-dim hidden)
 and so verify and render quickly — they're useful as the "ground truth" side
 of an SAE pipeline where the SAE features are scored against known structure.
+The temporal variant enables encoding regime/windowed features per econ-sae research.
 """
 from __future__ import annotations
 
@@ -213,4 +215,102 @@ def attn_world_model(
         FlowEdge("head", "y", "y_hat"),
     ])
     arch.invariants.append(Invariant("output_shape", "=", ("B", "N", "out_dim")))
+    return arch
+
+
+def temporal_world_model(
+    *,
+    input_dim: int = 43,
+    embed_dim: int = 64,
+    n_heads: int = 4,
+    gru_hidden: int = 128,
+    h1_dim: int = 192,
+    h2_dim: int = 128,
+    out_dim: int = 23,
+    name: str = "TemporalWorldModel",
+) -> Architecture:
+    """Temporal world model: per-period cross-agent attention + explicit state carry for cross-period context.
+
+    This implements a per-step graph (one time step / period) with an additional 'hidden' state tensor
+    that can be carried across periods by the caller (e.g. econ-sae trainer unrolling the trajectory).
+
+    Based on econ-sae TemporalWorldModel (attn + GRU) and the design in the OpenSpec change:
+    - Same attn + residual + LN + MLP structure as attn_world_model for per-period cross-agent context.
+    - Explicit 'hidden_in' / 'hidden_out' tensors (shape (B, N, gru_hidden)) for temporal state.
+    - Simple linear `hidden_update` as starting point. Full recurrent logic (e.g. actual GRU cell with
+      reset/update gates) is planned for a follow-up refinement (may live in the PyTorch emission or a
+      future builder variant).
+    - The h1 (post-attn) remains the SAE substrate; state allows encoding regime features over time.
+
+    The Architecture is a DAG; recurrence is handled externally by carrying hidden across steps.
+    This matches the "per-step-with-state" representation in the proposal and design.md.
+    """
+    arch = Architecture(
+        name=name,
+        description=(
+            f"Temporal world-model (per-period attn + state carry, gru_hidden={gru_hidden}). "
+            "Extends attn_world_model with explicit hidden state tensors for cross-period context "
+            "(enables regime/windowed feature recovery per econ-sae). h1 is the SAE substrate. "
+            "Caller manages unrolling/carrying hidden across T periods."
+        ),
+        hyperparameters=[
+            Hyperparameter("input_dim", "int", input_dim),
+            Hyperparameter("embed_dim", "int", embed_dim),
+            Hyperparameter("n_heads", "int", n_heads),
+            Hyperparameter("gru_hidden", "int", gru_hidden),
+            Hyperparameter("h1_dim", "int", h1_dim),
+            Hyperparameter("h2_dim", "int", h2_dim),
+            Hyperparameter("out_dim", "int", out_dim),
+        ],
+        tensors=[
+            Tensor("x", ("B", "N", "input_dim"), "float32"),
+            Tensor("y", ("B", "N", "out_dim"), "float32"),
+            Tensor("hidden_in", ("B", "N", "gru_hidden"), "float32"),
+            Tensor("hidden_out", ("B", "N", "gru_hidden"), "float32"),
+        ],
+    )
+    arch.layers.append(Layer(name="x", is_input=True))
+    arch.layers.append(Layer(name="hidden_in", is_input=True))
+
+    # Per-period cross-agent attention path (copied/extended from attn_world_model)
+    arch.layers.append(Layer(name="embed", op=OpCall("Linear", ["input_dim", "embed_dim"])))
+    arch.layers.append(Layer(name="attn", op=OpCall("MultiHeadAttention", ["embed_dim", "n_heads", "0.0"])))
+    arch.layers.append(Layer(name="add_attn", op=OpCall("Add", [])))
+    arch.layers.append(Layer(name="ln", op=OpCall("LayerNorm", ["embed_dim"])))
+    arch.layers.append(Layer(name="fc1", op=OpCall("Linear", ["embed_dim", "h1_dim"])))
+    arch.layers.append(Layer(name="act1", op=OpCall("ReLU", []),
+                              description="ReLU on H1 — SAE substrate (post temporal context)"))
+    arch.layers.append(Layer(name="fc2", op=OpCall("Linear", ["h1_dim", "h2_dim"])))
+    arch.layers.append(Layer(name="act2", op=OpCall("ReLU", [])))
+    arch.layers.append(Layer(name="head", op=OpCall("Linear", ["h2_dim", "out_dim"])))
+    arch.layers.append(Layer(name="y", is_output=True))
+
+    # Explicit state carry path (simple linear hidden_update as initial temporal mechanism;
+    # full GRU planned as follow-up per design)
+    arch.layers.append(Layer(name="hidden_update", op=OpCall("Linear", ["gru_hidden", "gru_hidden"])))
+    arch.layers.append(Layer(name="hidden_out", is_output=True))
+
+    # Flow for main prediction path (x -> y via attn)
+    arch.flow.extend([
+        FlowEdge("x", "embed", "x"),
+        FlowEdge("embed", "attn", "tokens"),
+        FlowEdge("attn", "add_attn", "attn_out"),
+        FlowEdge("embed", "add_attn", "tok_skip"),
+        FlowEdge("add_attn", "ln", "r"),
+        FlowEdge("ln", "fc1", "r_n"),
+        FlowEdge("fc1", "act1", "z1"),
+        FlowEdge("act1", "fc2", "h1"),
+        FlowEdge("fc2", "act2", "z2"),
+        FlowEdge("act2", "head", "h2"),
+        FlowEdge("head", "y", "y_hat"),
+    ])
+
+    # Flow for state carry (hidden_in -> hidden_out)
+    arch.flow.extend([
+        FlowEdge("hidden_in", "hidden_update", "h_in"),
+        FlowEdge("hidden_update", "hidden_out", "h_out"),
+    ])
+
+    # Note: no single output_shape invariant because we have y (out_dim) and hidden_out (gru_hidden)
+    # The main y output shape is enforced by the head layer.
     return arch

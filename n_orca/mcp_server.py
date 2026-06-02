@@ -325,6 +325,7 @@ def build_world_model(
     hidden_dims: list[int] | None = None,
     embed_dim: int = 64,
     n_heads: int = 4,
+    gru_hidden: int = 128,
     out_dim: int = 23,
     dropout: float = 0.0,
     name: str | None = None,
@@ -336,10 +337,12 @@ def build_world_model(
     Args:
         variant: "baseline" (2-hidden-layer MLP) | "deep" (N-hidden-layer MLP)
                  | "attn" (per-agent self-attention + MLP)
+                 | "temporal" (attn + explicit state carry for cross-period / regime features)
         input_dim / out_dim: per-agent state dimensionality (econ-sae default 43 / 23)
         h1_dim / h2_dim: MLP widths (baseline & attn variants)
         hidden_dims: list of hidden widths (deep variant only)
         embed_dim / n_heads / dropout: attention variant only
+        gru_hidden: state size for temporal variant
         name: override architecture name
     """
     variant = (variant or "").lower()
@@ -356,8 +359,14 @@ def build_world_model(
             embed_dim=embed_dim, n_heads=n_heads,
             h1_dim=h1_dim, h2_dim=h2_dim, dropout=dropout, **common,
         )
+    elif variant in ("temporal", "temporal_world_model"):
+        arch = _wm.temporal_world_model(
+            embed_dim=embed_dim, n_heads=n_heads,
+            gru_hidden=gru_hidden if 'gru_hidden' in locals() else 128,
+            h1_dim=h1_dim, h2_dim=h2_dim, **common,
+        )
     else:
-        return {"error": f"unknown variant {variant!r}; expected 'baseline' | 'deep' | 'attn'"}
+        return {"error": f"unknown variant {variant!r}; expected 'baseline' | 'deep' | 'attn' | 'temporal'"}
 
     return _materialise(arch, out_markdown=out_markdown, out_mermaid=out_mermaid)
 
