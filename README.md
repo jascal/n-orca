@@ -211,9 +211,13 @@ It answers two questions from static config alone:
 The same analysis is available over MCP (`check_runtime_capability`, which also
 accepts an HF `model_id`) and in the `runtime` block of every `verify --json`
 report. `n-orca hf convert` stamps the model's `model_type` into a `## runtime`
-section so the answer is authoritative (not a name guess) and round-trips. This
-is increment **A** of bringing Unsloth in as a train/serve backend; the
-train-recipe compiler and `train`/`export` tools build on it.
+section so the answer is authoritative (not a name guess) and round-trips.
+
+This is a **static, informational pre-flight gate** — most useful inside an
+automated design loop, to cheaply filter "could I even fine-tune this here?"
+before reaching for a GPU. It deliberately does **not** load weights or train
+anything: n-orca stays a design/verify tool, and the actual fine-tuning is left
+to Unsloth (for supported LLMs) or plain PyTorch (for everything else).
 
 ---
 
