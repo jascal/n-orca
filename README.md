@@ -5,6 +5,9 @@
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/jascal/n-orca/blob/main/LICENSE)
 [![Tests](https://img.shields.io/badge/tests-140%20passing-brightgreen)](https://github.com/jascal/n-orca/tree/main/tests)
 
+> **Current OpenSpec Changes** (active work tracked in `openspec/changes/`):
+> - `add-temporal-world-model` — Add support for temporal/recurrent world models (GRU-style state carry or per-period attention) to better support regime/windowed feature recovery from econ-sae. See the stub in `openspec/changes/add-temporal-world-model/`.
+
 N-Orca is a Markdown DSL for declaring, verifying, visualizing, and executing
 neural network architectures. It is a domain-specific dialect of
 [Orca](https://github.com/jascal/orca-lang) — Orca describes finite-state

@@ -32,3 +32,17 @@ Out: full trainer changes in econ-sae, actual temporal training experiments (tho
 Follows econ-sae temporal experiments and the "multi-decoder benchmark" lessons.
 
 This change will be the n-orca side of making temporal world models a shared artifact.
+
+## Initial Acceptance Criteria (for the builder + example)
+
+- The new builder (`temporal_world_model` or equivalent) must produce a verifiable Architecture that can represent per-period state carry (e.g. explicit `hidden` or `state` tensor passed through layers) or unrolled temporal steps.
+- Must support composition with existing attention (e.g. per-period attn + temporal state).
+- Example `examples/econ-temporal-world-model.n.orca.md` must:
+  - Verify cleanly (`n-orca verify`).
+  - Compile to runnable PyTorch (with state tensors handled in forward).
+  - Demonstrate state tracking patterns (e.g. GRU-like hidden update or attention over time).
+- MCP `build_world_model(variant="temporal", ...)` must expose relevant hyperparameters (e.g. `hidden_dim`, `temporal_type`).
+- Tests in `test_sae_and_world_models.py` must cover the new variant (AST, verify, compile, roundtrip).
+- Docs updated to reference econ-sae use case for regime features.
+
+Focus on patterns that allow the SAE substrate (h1 activations) to capture cross-period information without duplicating the full trainer logic in n-orca.

@@ -9,6 +9,9 @@ from pathlib import Path
 
 # Silence the harmless runpy warning when invoked via `python -m n_orca.cli.main`
 # (common when using the module form in CI / scripts; the installed `n-orca` entry point is clean).
+# This warning is triggered because the entry point "n_orca.cli.main:main" causes
+# runpy to see the package already imported when executing the .py as __main__.
+# It has no functional impact and is safe to suppress for CLI usage.
 warnings.filterwarnings(
     "ignore",
     message=r".*found in sys\.modules after import of package.*",
