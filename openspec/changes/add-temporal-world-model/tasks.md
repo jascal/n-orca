@@ -13,7 +13,7 @@
 ## 3. Examples & Tests
 
 - [x] 3.1 Add `examples/econ-temporal-world-model.n.orca.md` + `.mmd` (generated from builder)
-- [x] 3.2 Add test in `test_sae_and_world_models.py` (verifies, compiles, roundtrips)
+- [x] 3.2 Add test in `test_sae_and_world_models.py` (verifies, compiles, roundtrips)  -- Enhanced post-PR #3 review for hidden_out shape/dim assert + layer rename consistency.
 - [ ] 3.3 Full `n-orca verify` sweep and pytest  (new example verifies; full suite green)
 
 ## 4. Docs & Sync
@@ -27,4 +27,4 @@
 - [ ] 5.1 Mark tasks complete
 - [ ] 5.2 Archive the change
 
-(Initial scaffolding created during n-orca handoff session. Real design/implementation in follow-up dev sessions.)
+(Initial scaffolding created during n-orca handoff session. Impl + PR #3 (with nits addressed per review) merged 2026-06-03. Polish on 2.1/3.2 done; remaining tasks (2.3 shape/GRU, 4.x docs, 5. close/archive) for future cycles. Full GRU refinement tracked in IMPROVEMENT_GOAL + future OpenSpec if needed.)

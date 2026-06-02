@@ -3,10 +3,11 @@
 [![PyPI](https://img.shields.io/pypi/v/n-orca.svg)](https://pypi.org/project/n-orca/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/n-orca/)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/jascal/n-orca/blob/main/LICENSE)
-[![Tests](https://img.shields.io/badge/tests-140%20passing-brightgreen)](https://github.com/jascal/n-orca/tree/main/tests)
+[![Tests](https://img.shields.io/badge/tests-141%20passing-brightgreen)](https://github.com/jascal/n-orca/tree/main/tests)
 
 > **Current OpenSpec Changes** (active work tracked in `openspec/changes/`):
-> - `add-temporal-world-model` — Add support for temporal/recurrent world models (GRU-style state carry or per-period attention) to better support regime/windowed feature recovery from econ-sae. See the stub in `openspec/changes/add-temporal-world-model/`.
+> - `add-temporal-world-model` — Add support for temporal/recurrent world models (GRU-style state carry or per-period attention) to better support regime/windowed feature recovery from econ-sae. See `openspec/changes/add-temporal-world-model/`.
+> - `add-cosmos-mot-world-models` — Add MoT (Mixture of Transformers) dual-tower + joint-attn + diffusion timestep world model builders (Cosmos 3 style for Physical AI / multimodal / diffusion substrates). Enables richer SAE GT (physics, conjunctive cross-modal, diffusion factors) + potential new world-sae sibling. Subagent investigation complete; design/proposal/tasks scaffolded. See `openspec/changes/add-cosmos-mot-world-models/`.
 
 N-Orca is a Markdown DSL for declaring, verifying, visualizing, and executing
 neural network architectures. It is a domain-specific dialect of
