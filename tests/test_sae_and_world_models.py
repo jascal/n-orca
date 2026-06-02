@@ -180,6 +180,19 @@ def test_attn_world_model_has_attention_layer():
     assert "LayerNorm" in ops
 
 
+def test_temporal_world_model_has_state_tensors():
+    arch = world_models.temporal_world_model(input_dim=8, embed_dim=16, n_heads=2,
+                                             gru_hidden=32, h1_dim=32, h2_dim=16, out_dim=4)
+    rep = verify(arch)
+    assert rep.valid, [e.code for e in rep.errors]
+    tensor_names = {t.name for t in arch.tensors}
+    assert "hidden_in" in tensor_names
+    assert "hidden_out" in tensor_names
+    # Should have MultiHeadAttention from the per-period attn path
+    ops = {ly.op.name for ly in arch.layers if ly.op}
+    assert "MultiHeadAttention" in ops
+
+
 # --------------------------------------------------------------------------- #
 #  End-to-end PyTorch round-trip
 # --------------------------------------------------------------------------- #
