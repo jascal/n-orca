@@ -1,0 +1,20 @@
+%% architecture GatedSae
+flowchart TD
+    x(("x<br/>[input]"))
+    x_hat(("x_hat<br/>[output]"))
+    magnitude_proj["magnitude_proj<br/>Linear(input_dim, n_features)"]
+    gate_proj["gate_proj<br/>Linear(input_dim, n_features)"]
+    sigmoid["sigmoid<br/>Sigmoid()"]
+    gate_mul["gate_mul<br/>ElementwiseMul()"]
+    decoder["decoder<br/>Linear(n_features, input_dim)"]
+    x -- "x : (B,input_dim)" --> magnitude_proj
+    x -- "x : (B,input_dim)" --> gate_proj
+    gate_proj -- "g_pre : (B,n_features)" --> sigmoid
+    magnitude_proj -- "m : (B,n_features)" --> gate_mul
+    sigmoid -- "g : (B,n_features)" --> gate_mul
+    gate_mul -- "z_gated : (B,n_features)" --> decoder
+    decoder -- "x_hat : (B,input_dim)" --> x_hat
+    classDef input fill:#dbeafe,stroke:#1e40af,color:#1e3a8a;
+    class x input;
+    classDef output fill:#dcfce7,stroke:#166534,color:#14532d;
+    class x_hat output;

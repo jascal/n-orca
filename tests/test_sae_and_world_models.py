@@ -116,7 +116,7 @@ def test_gated_sae_has_parallel_branches_and_sigmoid_mul():
     assert rep.valid, [e.code for e in rep.errors]
     ops = {ly.op.name for ly in arch.layers if ly.op}
     assert "Sigmoid" in ops
-    assert "Mul" in ops
+    assert "ElementwiseMul" in ops
     # Two parallel Linear projections from x: magnitude_proj + gate_proj.
     edges_from_x = [e for e in arch.flow if e.source == "x"]
     assert {e.target for e in edges_from_x} == {"magnitude_proj", "gate_proj"}

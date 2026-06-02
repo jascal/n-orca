@@ -744,6 +744,14 @@ _register(OpSpec(
     pytorch_call=lambda a, inputs: " * ".join(inputs),
     is_module=False,
 ))
+# Alias for clarity in gated / elementwise contexts (same semantics as Mul)
+_register(OpSpec(
+    "ElementwiseMul", -1,
+    infer=_mul_infer, params=lambda a, s: 0,
+    pytorch_init=lambda a: "nn.Identity()  # ElementwiseMul (functional)",
+    pytorch_call=lambda a, inputs: " * ".join(inputs),
+    is_module=False,
+))
 _register(OpSpec(
     "Concat", -1,
     infer=_concat_infer, params=lambda a, s: 0,

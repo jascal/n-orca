@@ -346,7 +346,7 @@ def gated_sae(
               op=OpCall("Sigmoid", [])),
         Layer(name="gate_mul",
               description="Element-wise multiply magnitude × gate",
-              op=OpCall("Mul", [])),
+              op=OpCall("ElementwiseMul", [])),
         Layer(name="decoder", op=OpCall("Linear", ["n_features", "input_dim"])),
     ])
     arch.flow.extend([
