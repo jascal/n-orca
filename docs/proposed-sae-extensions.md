@@ -1,6 +1,10 @@
 # n-orca SAE extensions — proposal for Families F1, G, and GatedSAE
 
-**Date:** 2026-05-23
+**Date:** 2026-05-23 (proposal)  
+**Implemented:** 2026-06-02 (builders + MCP + examples + tests)
+
+**Status:** ✅ All three builders landed in `n_orca/sae.py`, exposed in `build_sae` MCP tool, verified in tests, and shipped with first-class `examples/sae-*.n.orca.md` + `.mmd` (see acceptance gates below).
+
 **Motivated by:** bio-sae's H-ISF + AutoML framework
 (`bio-sae/docs/forge-incremental-specialist.md` §4.6-4.8), validated
 empirically by econ-sae's 6-phase journey
@@ -293,16 +297,18 @@ into other compositions). Both are 1-line registry additions.
 3. **`gated_sae`** — modest expected lift; mostly useful as an extra
    AutoML library member for activation-function diversity.
 
-**Per-builder PR acceptance:**
+**Per-builder PR acceptance (all completed 2026-06-02):**
 
-- New builder lives in `n_orca/sae.py`.
-- MCP server `n_orca/mcp_server.py::build_sae` recognizes the new
-  variant strings.
-- `tests/test_sae_and_world_models.py` adds: AST verifies, Mermaid
-  compiles cleanly, PyTorch compiles to runnable nn.Module.
-- `examples/` directory gets a worked-example for each new builder
-  (mirroring the existing TopK example shape).
-- `scripts/generate_sae_docs.py` regenerates the cross-sibling docs.
+- [x] New builder lives in `n_orca/sae.py`.
+- [x] MCP server `n_orca/mcp_server.py::build_sae` recognizes the new
+  variant strings (attn_topk, supervised_topk, gated).
+- [x] `tests/test_sae_and_world_models.py` + core tests: AST verifies, Mermaid
+  compiles cleanly, PyTorch compiles to runnable nn.Module (including multi-output tuple for supervised and 3D for attn).
+- [x] `examples/` directory gets a worked-example for each new builder
+  (`sae-attn-topk.n.orca.md`, `sae-supervised-topk.n.orca.md`, `sae-gated.n.orca.md` + .mmd; all pass `n-orca verify` and the CI glob).
+- [ ] `scripts/generate_sae_docs.py` regenerates the cross-sibling docs (deferred — run in econ-sae / sm-sae / polygram follow-up change; the n-orca side is ready).
+
+The n-orca side is now the shared, verified source of truth for these architectures.
 
 ## 5. What this unlocks downstream
 
@@ -323,18 +329,51 @@ shared resource instead of econ-sae-internal code.
 
 ---
 
-## 6. Open design questions
+## 6. Open design questions (resolution as of implementation 2026-06-02)
 
-1. **3D-tensor threading for attn_topk_sae**: does n-orca's shape
-   inference handle `(B, T, d_in)` cleanly across the
-   Attention→LayerNorm→Linear chain? World-models do this already,
-   but the SAE shape rules may have a 2D-tensor assumption baked in.
-2. **Multi-output architectures**: does
-   `Architecture.is_output=True` on multiple layers compile
-   correctly? Need to test on a multi-head world model first if not.
-3. **n-orca AST capability for skip connections** (relevant if we
-   want a residual around the attention block — common in
-   transformer-style SAE designs). May be future work.
-4. **Tied decoder option** for the new variants — existing variants
-   support `tied_decoder=True` as a verification-rule note. Should
-   the new variants inherit this?
+1. **3D-tensor threading for attn_topk_sae**: ✅ Resolved. n-orca's shape
+   inference + verifier + PyTorch compiler handle `(B, T, d_in)` cleanly
+   (the econ-attn-world-model examples already exercised similar 3D paths;
+   the attn_topk builder overrides tensors/invariants and the tests + manual
+   forwards confirm it works end-to-end).
+
+2. **Multi-output architectures**: ✅ Resolved for supervised case.
+   `supervised_topk_sae` produces two outputs (`x_hat` and `y_logits`); the
+   Architecture, verifier, Mermaid, and PyTorch compiler all support it
+   (forward returns a tuple). The econ world models with multiple heads can
+   be used as additional test cases.
+
+3. **n-orca AST capability for skip connections**: The attn_topk example
+   already uses an explicit residual Add (add_attn layer with skip from x).
+   General residual / skip support works for the topologies needed by these
+   SAEs. More advanced "skip around attention block" patterns are possible
+   today via the flow table; deeper transformer-style SAE designs can be
+   added as new builders later.
+
+4. **Tied decoder option**: The new variants accept `tied_decoder=True`
+   (passed through the shared `_sae_skeleton` + `_close_sae` helpers, same as
+   the classic variants). It is supported as a verification-rule / builder
+   flag (the actual weight tying is the consumer's responsibility in the loss
+   or module, as before).
+
+All core questions from the proposal are satisfied for the n-orca side.
+Cross-sibling doc regeneration and any further topology/ops work (e.g.
+more explicit ElementwiseMul if desired for gated) are tracked as follow-ups.
+
+## 7. Implementation summary (2026-06-02)
+
+- Builders + docstrings + MCP support landed (including the exact kwarg
+  surfaces requested).
+- Full test coverage (AST, verify, mermaid, pytorch forward for the variants).
+- Shipped examples added (`sae-attn-topk`, `sae-supervised-topk`, `sae-gated`)
+  and verified via CLI + full pytest.
+- OpenSpec change `add-missing-advanced-sae-examples` used to track the
+  examples + polish work (archived).
+- n-orca-specific Claude/Grok skills added (`n-orca-build-sae`,
+  `n-orca-build-world-model`, `n-orca-verify`, `n-orca-compile`) so agents
+  can drive these directly.
+- Minor: CLI runpy warning silenced for `python -m` usage.
+
+The n-orca side of the proposal is complete. Downstream consumers (econ-sae
+trainer, bio-sae AutoML, polygram, sae-forge) can now reliably pull
+architectures from the shared n-orca builders + examples.

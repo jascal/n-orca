@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/n-orca.svg)](https://pypi.org/project/n-orca/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/n-orca/)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/jascal/n-orca/blob/main/LICENSE)
-[![Tests](https://img.shields.io/badge/tests-139%20passing-brightgreen)](https://github.com/jascal/n-orca/tree/main/tests)
+[![Tests](https://img.shields.io/badge/tests-140%20passing-brightgreen)](https://github.com/jascal/n-orca/tree/main/tests)
 
 N-Orca is a Markdown DSL for declaring, verifying, visualizing, and executing
 neural network architectures. It is a domain-specific dialect of
@@ -308,10 +308,24 @@ tests/test_render.py              2 passed
 tests/test_sae_and_world_models.py  24 passed
 tests/test_verifier.py           16 passed
 =========================
-139 passed in 13.29s
+140 passed in 7.41s (clean 3.11 + torch env)
 ```
 
 ---
+
+## Development
+
+```bash
+# From repo root
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e ".[all]"
+python -m pytest -q
+n-orca verify examples/transformer-block.n.orca.md
+```
+
+The repo declares Python >=3.10. CI uses 3.10–3.12 + CPU torch.
 
 ## Design philosophy
 
@@ -334,3 +348,30 @@ N-Orca borrows three load-bearing ideas from
 The net effect: an LLM can write an architecture in Markdown, get structured
 verifier feedback, refine, and ship runnable code — without ever editing
 Python.
+
+## SAE & World Model builders (for interpretability research)
+
+n-orca ships ready-to-use builders for the exact architectures used as
+**ground-truth substrates and SAE models** in econ-sae (and cross-sibling
+sm-sae / bio-sae + polygram work):
+
+World models (SAE training substrates, H1 activations are the target):
+- `world_model` (baseline 2-layer MLP)
+- `deep_world_model`
+- `attn_world_model` (per-agent / per-position MultiHeadAttention + residual + LN before the MLP — the biggest single lift for conjunctive features in econ-sae)
+
+SAE variants (all verify + compile to PyTorch/Mermaid):
+- `topk_sae`, `l1_sae`, `jumprelu_sae` (classic families)
+- `attn_topk_sae` (attention prefix for cross-position context; 3D `(B,T,d)`)
+- `supervised_topk_sae` (auxiliary per-label classifier head off the sparse latents; multi-output)
+- `gated_sae` (parallel magnitude + sigmoid gate, elementwise mul)
+
+See:
+- `n_orca/sae.py` and `n_orca/world_models.py` (builders + docstrings with econ-sae Phase references)
+- `examples/sae-*.n.orca.md` and `examples/econ-*.n.orca.md` (all verified)
+- MCP tools: `build_sae`, `build_world_model`, `verify_markdown`, `compile_*`
+- n-orca skills: `/n-orca-build-sae`, `/n-orca-build-world-model`
+
+These are the canonical, verified definitions. Use them from n-orca instead of duplicating topology in the SAE-fixture repos.
+
+See `docs/proposed-sae-extensions.md` for the full motivation + implementation status (landed 2026-06-02, examples + skills added in this handoff).
