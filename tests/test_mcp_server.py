@@ -121,3 +121,22 @@ def test_convert_from_hf_with_inline_config_via_mcp(tmp_path):
     assert "error" not in data, data.get("error")
     assert data["report"]["valid"] is True
     assert (tmp_path / "out.n.orca.md").exists()
+
+
+def test_build_world_model_mot_with_timestep_dim():
+    """Test MCP build_world_model for mot variant with custom timestep_dim (nit from PR #8 review)."""
+    async def _go(session):
+        result = await session.call_tool("build_world_model", {
+            "variant": "mot",
+            "embed_dim": 32,
+            "n_heads": 2,
+            "timestep_dim": 16,
+            "h1_dim": 32,
+            "h2_dim": 16,
+        })
+        return json.loads(result.content[0].text)
+
+    data = _run(_with_session(_go))
+    assert "error" not in data, data.get("error")
+    assert data["report"]["valid"] is True
+    assert data["architecture_name"] == "MoTDenoiseStep"
