@@ -332,8 +332,8 @@ def mot_denoise_step(
     Mirrors Cosmos 3 dual-tower (independent LN/MLP per stream; shared joint attn per subagent report).
     Per-step DAG (external loop over diffusion schedule, like temporal hidden carry).
     AR causal self-attn only; DM attends concat(AR,DM) for conditioning.
-    Timestep injected to DM path (simple Linear projection; sinusoid in full DiT).
-    Uses existing ops (Linear, LayerNorm, MultiHeadAttention, Add, ReLU); joint attn
+    Timestep injected to DM path via dedicated TimestepEmbed (learned Linear for toy; sinusoid in full DiT).
+    Uses Linear, LayerNorm, MultiHeadAttention, Add, ReLU + the new TimestepEmbed op; joint attn
     approximated here via structure + docstring (full DualStreamJointAttention op in follow-up slice).
     Toy dims for verification; real via HF/diffusers in consumers.
 
