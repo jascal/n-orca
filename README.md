@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/n-orca.svg)](https://pypi.org/project/n-orca/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/n-orca/)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/jascal/n-orca/blob/main/LICENSE)
-[![Tests](https://img.shields.io/badge/tests-142%20passing-brightgreen)](https://github.com/jascal/n-orca/tree/main/tests)
+[![Tests](https://img.shields.io/badge/tests-143%20passing-brightgreen)](https://github.com/jascal/n-orca/tree/main/tests)
 
 > **Current OpenSpec Changes** (active work tracked in `openspec/changes/`):
 > - `add-temporal-world-model` — Add support for temporal/recurrent world models (GRU-style state carry or per-period attention) to better support regime/windowed feature recovery from econ-sae. See `openspec/changes/add-temporal-world-model/`.
@@ -304,7 +304,7 @@ tests/test_hf_adapters.py        28 passed
 tests/test_hf_cli.py              4 passed
 tests/test_hf_client.py           8 passed
 tests/test_mermaid.py             4 passed
-tests/test_mcp_server.py          5 passed
+tests/test_mcp_server.py          6 passed  (incl mot with timestep_dim)
 tests/test_ops.py                22 passed
 tests/test_parser.py             11 passed
 tests/test_pytorch.py             8 passed
@@ -312,7 +312,7 @@ tests/test_render.py              2 passed
 tests/test_sae_and_world_models.py  25 passed  (incl temporal + mot_denoise)
 tests/test_verifier.py           16 passed
 =========================
-142 passed in 7.27s (clean 3.11 + torch env; +1 for mot_denoise_step test)
+143 passed in 6.83s (clean 3.11 + torch env; +1 for mot MCP timestep test)
 ```
 
 ---
