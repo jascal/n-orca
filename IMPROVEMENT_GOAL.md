@@ -41,7 +41,7 @@
 
 This goal is intended to be driven by recurring schedulers, background sub-agents, and interactive sessions with Grok. It should run "carefully but indefinitely" until the user decides the project has reached a stable mature state.
 
-Last updated: 2026-06-03 (workflow fix: added explicit open-PRs check to How to Work + SDLC section + scheduler prompt to prevent selecting tasks that overlap open PRs or duplicate in-flight work, after PR#7 duplicate of merged PR#6).
+Last updated: 2026-06-03 (scheduler cycle: mcp timestep_dim for mot + PR#8; open PRs rule followed (none); 142 tests; cosmos 2.2/3.2/4.x + temporal remain pending).
 ## Recent Activity
 
 **2026-06-02 (initial setup by Grok during n-orca lead handoff)**:
@@ -254,6 +254,30 @@ Next scheduled ~3h. All safety/SDLC/KB/prompt followed (tests+ex 100% green at s
 - Updated this log.
 
 Next scheduled ~3h. All rules followed.
+
+**2026-06-03 (scheduled cycle - mcp timestep_dim for mot + full audit + KB + SDLC PR#8)**:
+- Started per scheduler prompt: full read prompt + goal (last has workflow fix + PR#7 nits + previous 2.1 logs) + openspec/changes (list_dir + read tasks for temporal: 2.3/3.3/4.2/4.3/5.x remain; cosmos: 2.2/3.2/4.1/4.3+ pending, 2.1/2.3/3.1/3.3/4.2 done per file) + todo_write (merge to see pending).
+- Open PRs check (critical, first in planning): gh pr list --state open = [] (none). "Open PRs checked via gh; no overlap with none". Safe to pick any.
+- Full audits:
+  - Tests: .venv/bin/python -m pytest -q --tb=no → 142 passed (1 harmless).
+  - Examples verify: all *.n.orca.md + hf samples → all VALID (incl cosmos-mot, temporal, sae etc).
+  - n-orca cli + builds ok.
+  - Code inspect: list_dir n_orca/; read_file mcp_server.py (mot case present but no timestep_dim param in def or call, **common would leak input_dim causing error; skill has mot desc; README current; world_models has mot builder with timestep support; temporal has hidden shapes; no Timestep/Dual ops in spec.py yet); grep; test_mcp has no mot test yet.
+  - OpenSpec: confirmed 2.2 ops pending (per design), 4.1 skill desc already in file so can mark, mcp wire partial.
+- KB (per prompt): search_tool "q-orca-kb"; use_tool attempts (closed); direct mp_list/mp_search on n-orca-lang: 67 sources (self n-orca + 5 lang arXiv); searches for temporal/MoT/diffusion/language design/SAE hit self docs (goal, world_models, OpenSpec) + papers. Confirmed n-orca-lang-wiki config. Grounded before pick: self is source, limited external on timestep ops, no need to index now.
+- Planning: Reviewed principles + open PRs rule (none open). From todos/OpenSpec + KB (self grounded), picked: enhance mcp build_world_model to accept/pass timestep_dim for "mot" variant (add param+doc+fix call site). Justif: smallest/safest (5-line backward-compat addition like gru_hidden for temporal; completes MCP exposure per design "Expose ... timestep_dim ... in ... MCP" and 2.3; fixes latent bug where **common would error; no new ops (2.2 heavier); high value for agents/MCP/skill usability; tests/mcp green; "prefer pure docs" but this is minimal code polish to make existing work; over 3.2 ex (would need new builder) or 2.2 (new ops in spec.py + possible verifier changes). "Open PRs checked via gh; no overlap with none". Conservative.
+- Execution (read-first):
+  - read_file (goal, openspec tasks x2, mcp_server.py build fn, world_models mot sig for ref, skill).
+  - search_replace x2 on mcp_server.py: add timestep_dim=128 param after gru_hidden + docstring; update mot case to pass it and use mot_kw instead of **common (to avoid input_dim error).
+  - Test: python direct build_world_model(variant="mot", ..., timestep_dim=32) → VALID arch.
+  - Re-audits: mcp tests 5p, full pytest 142p; no ex change needed.
+- SDLC (MCP public API change): branch grok/add-cosmos-mot-mcp-timestep-support, git add only mcp_server.py, commit (ref OpenSpec 2.3/design/goal), push, gh pr create #8. No wait.
+- Progress: todo_write (audit done, cosmos-mcp-timestep complete, noted 2.2 next). Appended this to goal. OpenSpec tasks not edited (mcp wire was [x], this is polish).
+- Used KB first.
+- No blockers. 100% green. Followed all (reads, PR check first, smallest per rule, search_replace, re-audit, SDLC, n-orca only, log).
+- Next expected: future cycle can do cosmos 2.2 (new ops per design), 3.2 reasoner ex, 4.1 mark skill in tasks (already desc), temporal 2.3/3.3, or KB index. PR#8 for review.
+
+Next scheduled ~3h. All safety/SDLC/KB/prompt followed (tests+ex 100% green, open PRs checked none, read/search_replace, full log).
 
 **2026-06-03 (fix scheduler SDLC workflow for open PRs)**:
 - User feedback: scheduler should not select/work on tasks that touch or duplicate open PRs (the PR#7 duplicate re-impl of mot_denoise_step after #6 was the symptom).
