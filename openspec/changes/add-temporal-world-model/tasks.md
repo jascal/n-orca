@@ -18,7 +18,7 @@
 
 ## 4. Docs & Sync
 
-- [ ] 4.1 Update README SAE/World Model section and `docs/proposed-sae-extensions.md` or new doc
+- [x] 4.1 Update README SAE/World Model section and `docs/proposed-sae-extensions.md` or new doc (README builders list + temporal note + econ ref done in 2026-06-03 scheduler cycle / PR#5; proposed is SAE-focused, crossref sufficient).
 - [ ] 4.2 Note for econ-sae consumption (the n-orca definition becomes the spec)
 - [ ] 4.3 Consider regen of sibling docs
 

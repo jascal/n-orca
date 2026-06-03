@@ -199,6 +199,19 @@ def test_temporal_world_model_has_state_tensors():
     assert "MultiHeadAttention" in ops
 
 
+def test_mot_denoise_step_has_dual_streams_and_timestep():
+    arch = world_models.mot_denoise_step(d_model=32, n_heads=2, timestep_dim=8, h1_dim=16, h2_dim=8)
+    rep = verify(arch)
+    assert rep.valid, [e.code for e in rep.errors]
+    tensor_names = {t.name for t in arch.tensors}
+    assert "ar_x" in tensor_names and "dm_x_noisy" in tensor_names and "t" in tensor_names and "dm_x_denoised" in tensor_names
+    # Should have MultiHeadAttention
+    ops = {ly.op.name for ly in arch.layers if ly.op}
+    assert "MultiHeadAttention" in ops
+    # timestep linear
+    assert any("ts_embed" in ly.name for ly in arch.layers)
+
+
 # --------------------------------------------------------------------------- #
 #  End-to-end PyTorch round-trip
 # --------------------------------------------------------------------------- #

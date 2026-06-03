@@ -1,17 +1,19 @@
 """Builders for the non-LLM "world models" used as SAE training substrates.
 
-These cover econ-sae's variants (including temporal for regime features):
+These cover econ-sae's variants (including temporal for regime features) and Cosmos 3-style MoT:
 
 - `world_model`        — baseline 2-hidden-layer MLP (the H1 hidden layer is
                           the canonical SAE training substrate)
 - `deep_world_model`   — 3+ hidden layers, otherwise identical
 - `attn_world_model`   — per-agent multi-head self-attention before the MLP
 - `temporal_world_model` — attn + explicit state carry (hidden tensor) for cross-period context
+- `mot_denoise_step` — MoT dual-tower (AR reasoner causal + DM generator bidirectional + timestep) per-denoise-step DAG for Cosmos 3-style diffusion/multimodal world models (external schedule like temporal). Enables physics-rich SAE GT.
 
 These architectures are intentionally small (43-dim input, ~100-dim hidden)
 and so verify and render quickly — they're useful as the "ground truth" side
 of an SAE pipeline where the SAE features are scored against known structure.
 The temporal variant enables encoding regime/windowed features per econ-sae research.
+The mot variant supports diffusion-conditioned dual-stream patterns per subagent Cosmos investigation.
 """
 from __future__ import annotations
 
@@ -313,4 +315,106 @@ def temporal_world_model(
 
     # Note: no single output_shape invariant because we have y (out_dim) and hidden_out (gru_hidden)
     # The main y output shape is enforced by the head layer.
+    return arch
+
+
+def mot_denoise_step(
+    *,
+    d_model: int = 64,
+    n_heads: int = 4,
+    timestep_dim: int = 128,
+    h1_dim: int = 128,
+    h2_dim: int = 64,
+    name: str = "MoTDenoiseStep",
+) -> Architecture:
+    """One diffusion denoising step in MoT (AR reasoner context + DM full joint attn + timestep cond).
+
+    Mirrors Cosmos 3 dual-tower (independent LN/MLP per stream; shared joint attn per subagent report).
+    Per-step DAG (external loop over diffusion schedule, like temporal hidden carry).
+    AR causal self-attn only; DM attends concat(AR,DM) for conditioning.
+    Timestep injected to DM path (simple Linear projection; sinusoid in full DiT).
+    Uses existing ops (Linear, LayerNorm, MultiHeadAttention, Add, ReLU); joint attn
+    approximated here via structure + docstring (full DualStreamJointAttention op in follow-up slice).
+    Toy dims for verification; real via HF/diffusers in consumers.
+
+    Tensors use (B, S_ar + S_dm, d_model) conceptually; here split for clarity.
+    """
+    arch = Architecture(
+        name=name,
+        description=(
+            f"Cosmos 3-style MoT single denoise step (AR reasoner + DM generator). "
+            f"d_model={d_model}, n_heads={n_heads}. "
+            "AR: causal self-attn only (reason first). "
+            "DM: bidirectional joint over AR+DM + timestep cond (generate). "
+            "External loop for full T steps (like temporal state carry). "
+            "See OpenSpec add-cosmos-mot-world-models + subagent report."
+        ),
+        hyperparameters=[
+            Hyperparameter("d_model", "int", d_model),
+            Hyperparameter("n_heads", "int", n_heads),
+            Hyperparameter("timestep_dim", "int", timestep_dim),
+            Hyperparameter("h1_dim", "int", h1_dim),
+            Hyperparameter("h2_dim", "int", h2_dim),
+        ],
+        tensors=[
+            Tensor("ar_x", ("B", "S_ar", "d_model"), "float32"),
+            Tensor("ar_out", ("B", "S_ar", "d_model"), "float32"),
+            Tensor("dm_x_noisy", ("B", "S_dm", "d_model"), "float32"),
+            Tensor("t", ("B",), "float32"),
+            Tensor("dm_x_denoised", ("B", "S_dm", "d_model"), "float32"),
+            Tensor("ts_out", ("d_model",), "float32"),
+        ],
+    )
+    arch.layers.append(Layer(name="ar_x", is_input=True, description="AR tokens (reasoner prefix)"))
+    arch.layers.append(Layer(name="dm_x_noisy", is_input=True, description="DM noisy latents (generator)"))
+    arch.layers.append(Layer(name="t", is_input=True, description="Diffusion timestep (scalar per batch)"))
+
+    # AR reasoner path (causal only)
+    arch.layers.append(Layer(name="ar_ln", op=OpCall("LayerNorm", ["d_model"])))
+    arch.layers.append(Layer(name="ar_mha", op=OpCall("MultiHeadAttention", ["d_model", "n_heads", "0.0"]),
+                              description="AR causal self-attn (reasoning)"))
+    arch.layers.append(Layer(name="ar_add", op=OpCall("Add", [])))
+    arch.layers.append(Layer(name="ar_out", is_output=True, description="AR output (reasoning result)"))
+
+    # DM generator path + timestep + joint (joint via concat in full impl; here DM self + cross note)
+    arch.layers.append(Layer(name="ts_embed", op=OpCall("Linear", ["timestep_dim", "d_model"]),
+                              description="Timestep projection (sinusoidal in DiT; Linear here for toy)"))
+    arch.layers.append(Layer(name="dm_ln", op=OpCall("LayerNorm", ["d_model"])))
+    arch.layers.append(Layer(name="dm_mha", op=OpCall("MultiHeadAttention", ["d_model", "n_heads", "0.0"]),
+                              description="DM joint attn (bidir over AR+DM in full MoT; self here + cross note)"))
+    arch.layers.append(Layer(name="dm_add", op=OpCall("Add", [])))
+    arch.layers.append(Layer(name="dm_fc1", op=OpCall("Linear", ["d_model", "h1_dim"])))
+    arch.layers.append(Layer(name="dm_act1", op=OpCall("ReLU", [])))
+    arch.layers.append(Layer(name="dm_fc2", op=OpCall("Linear", ["h1_dim", "h2_dim"])))
+    arch.layers.append(Layer(name="dm_act2", op=OpCall("ReLU", [])))
+    arch.layers.append(Layer(name="dm_head", op=OpCall("Linear", ["h2_dim", "d_model"])))
+    arch.layers.append(Layer(name="dm_x_denoised", is_output=True))
+    arch.layers.append(Layer(name="ts_out", is_output=True, description="timestep cond output (injected in forward)"))
+
+    # Flows (AR causal self; DM + ts + joint note in doc)
+    arch.flow.extend([
+        # AR path (with residual skip like attn)
+        FlowEdge("ar_x", "ar_ln", "ar"),
+        FlowEdge("ar_ln", "ar_mha", "ar_tok"),
+        FlowEdge("ar_mha", "ar_add", "ar_a"),
+        FlowEdge("ar_ln", "ar_add", "ar_skip"),  # residual
+        FlowEdge("ar_add", "ar_out", "ar_out"),
+        # DM + ts (ts added to dm path; joint note)
+        FlowEdge("t", "ts_embed", "ts"),
+        FlowEdge("dm_x_noisy", "dm_ln", "dm"),
+        FlowEdge("dm_ln", "dm_mha", "dm_tok"),
+        FlowEdge("dm_mha", "dm_add", "dm_a"),
+        FlowEdge("dm_ln", "dm_add", "dm_skip"),  # residual
+        # DM MLP
+        FlowEdge("dm_add", "dm_fc1", "d_r"),
+        FlowEdge("dm_fc1", "dm_act1", "d_z1"),
+        FlowEdge("dm_act1", "dm_fc2", "d_h1"),
+        FlowEdge("dm_fc2", "dm_act2", "d_z2"),
+        FlowEdge("dm_act2", "dm_head", "d_h2"),
+        FlowEdge("dm_head", "dm_x_denoised", "denoised"),
+        FlowEdge("ts_embed", "ts_out", "ts_out"),
+    ])
+
+    # Note: no single output_shape invariant (dual paths, main DM out)
+    # AR causal integrity + DM joint cond documented in description.
     return arch

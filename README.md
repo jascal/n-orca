@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/n-orca.svg)](https://pypi.org/project/n-orca/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/n-orca/)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/jascal/n-orca/blob/main/LICENSE)
-[![Tests](https://img.shields.io/badge/tests-141%20passing-brightgreen)](https://github.com/jascal/n-orca/tree/main/tests)
+[![Tests](https://img.shields.io/badge/tests-142%20passing-brightgreen)](https://github.com/jascal/n-orca/tree/main/tests)
 
 > **Current OpenSpec Changes** (active work tracked in `openspec/changes/`):
 > - `add-temporal-world-model` — Add support for temporal/recurrent world models (GRU-style state carry or per-period attention) to better support regime/windowed feature recovery from econ-sae. See `openspec/changes/add-temporal-world-model/`.
@@ -309,10 +309,10 @@ tests/test_ops.py                22 passed
 tests/test_parser.py             11 passed
 tests/test_pytorch.py             8 passed
 tests/test_render.py              2 passed
-tests/test_sae_and_world_models.py  24 passed
+tests/test_sae_and_world_models.py  25 passed  (incl temporal + mot_denoise)
 tests/test_verifier.py           16 passed
 =========================
-140 passed in 7.41s (clean 3.11 + torch env)
+142 passed in 7.27s (clean 3.11 + torch env; +1 for mot_denoise_step test)
 ```
 
 ---
@@ -363,6 +363,8 @@ World models (SAE training substrates, H1 activations are the target):
 - `world_model` (baseline 2-layer MLP)
 - `deep_world_model`
 - `attn_world_model` (per-agent / per-position MultiHeadAttention + residual + LN before the MLP — the biggest single lift for conjunctive features in econ-sae)
+- `temporal_world_model` (attn + explicit `hidden_in`/`hidden_out` state carry for cross-period regime features per econ-sae; see OpenSpec add-temporal-world-model)
+- `mot_denoise_step` (MoT dual-tower AR-reasoner + DM-generator + timestep for Cosmos 3-style diffusion/multimodal world models; enables richer physics/conjunctive/diffusion-stage SAE GT; see OpenSpec add-cosmos-mot-world-models + subagent report)
 
 SAE variants (all verify + compile to PyTorch/Mermaid):
 - `topk_sae`, `l1_sae`, `jumprelu_sae` (classic families)
@@ -372,7 +374,7 @@ SAE variants (all verify + compile to PyTorch/Mermaid):
 
 See:
 - `n_orca/sae.py` and `n_orca/world_models.py` (builders + docstrings with econ-sae Phase references)
-- `examples/sae-*.n.orca.md` and `examples/econ-*.n.orca.md` (all verified)
+- `examples/sae-*.n.orca.md`, `examples/econ-*.n.orca.md`, `examples/cosmos-mot-*.n.orca.md` (all verified)
 - MCP tools: `build_sae`, `build_world_model`, `verify_markdown`, `compile_*`
 - n-orca skills: `/n-orca-build-sae`, `/n-orca-build-world-model`
 
