@@ -226,3 +226,18 @@ Next scheduled ~3h (or manual "run next improvement cycle"). All rules followed.
 - Next expected: future cycle (after PR#6 review/feedback if pasted) can do 2.3 mcp wire + update skill/error, or 3.2 more ex (reasoner), or 4.x docs (README builders list, since current lags even temporal), or temporal 2.3/3.3/4.x, or index more papers (e.g. arXiv on MoT/diffusion) to n-orca-lang room via q-orca-kb, or world-sae stub. PR#6 for review.
 
 Next scheduled ~3h. All safety/SDLC/KB/prompt followed (tests+ex 100% green at start+end+re-audits, read/search_replace, conservative slice using exist ops, full log, n-orca source advanced for MoT).
+
+**2026-06-03 (address PR #7 review nits post #6 merge)**:
+- PR #7 (duplicate re-execution of mot_denoise_step from scheduler re-audit showing "no mot" despite #6) received ✅ Approved review.
+- Addressed nits on main (post #6 merge):
+  1. Added comment in `mot_denoise_step()` docstring area: "# AR/DM towers use separate MHA for now; true DualStreamJointAttention op ... planned for 2.2 per design."
+  2. Enhanced `test_mot_denoise_step_has_dual_streams_and_timestep()` with `dm_denoised.shape == dm_noisy.shape` assert (and verified test still passes).
+  3. MCP/skill defer noted (2.3 pending per OpenSpec).
+  4. README already current (142 badge, mot listed in world models bullets + cosmos ex refs, test breakdown mentions mot) — no edit needed.
+- Committed as 660c340 "address PR #7 review nits (post #6 merge)".
+- Added review response comment to PR #7.
+- Closed PR #7 as duplicate of merged #6 (per review recommendation).
+- No code/tests breakage; 142p + VALID ex confirmed.
+- Updated this log.
+
+Next scheduled ~3h. All rules followed.
