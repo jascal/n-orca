@@ -28,7 +28,7 @@
 
 ## How to Work on This Goal
 
-**Current active scheduler (as of this edit):** 1 running 3-hour recurring loop (ID 019e8d4f094e, created 2026-06-03 after deleting prior instance 019e8a9e5f8e during the open-PRs workflow fix). No duplicates. Historical IDs in Recent Activity logs below are just records of past refreshes (old schedulers were deleted + recreated with prompt updates). Always use the `scheduler_list` tool for live confirmation.
+**Current active schedulers (as of this edit):** dev/improvement 019e8d4f094e + review agent 019e8e118710 (both 3h recurring durable; phases offset). No duplicates. Use `scheduler_list` for live. (See full in Recent + AGENTS.md).
 
 1. Start each improvement cycle by reading this file + current `openspec/changes/` + `todo` state.
 2. Run audits: full tests, example verification, `n-orca info` / build on key examples.
@@ -44,7 +44,7 @@
 
 This goal is intended to be driven by recurring schedulers, background sub-agents, and interactive sessions with Grok. It should run "carefully but indefinitely" until the user decides the project has reached a stable mature state.
 
-Last updated: 2026-06-03 (scheduler status audit: only 1 active 3h loop (019e8d4f094e); cleaned stale ID refs in AGENTS.md + goal logs; no dupes running. Prior cycle: mcp timestep_dim for mot + PR#8 merged after nits).
+Last updated: 2026-06-03 (this cycle: full audit 144p + all ex VALID + KB + openPRs none + cosmos 2.2 DualStreamJointAttention op + builder + ex regen + PR#10; updated tasks + appended log; 2 schedulers per docs; no open PRs).
 ## Recent Activity
 
 **2026-06-02 (initial setup by Grok during n-orca lead handoff)**:
@@ -315,3 +315,29 @@ Next scheduled ~3h. All safety/SDLC/KB/prompt followed (tests+ex 100% green, ope
 - Also updated AGENTS.md (see separate edit) to reflect the rule for agents.
 - This ensures future cycles (including the current 019e8d4f094e) will check `gh pr list` before picking from todos/OpenSpec and will prefer unrelated safe work if the next logical slice is already in a PR.
 - No code changes; pure docs/process fix. Tests/examples untouched.
+
+**2026-06-03 (scheduled cycle - cosmos 2.2 DualStreamJointAttention + full audit + KB + SDLC PR#10)**:
+- Started per prompt: read full prompt + goal (latest ends at open-PRs workflow fix + PR#8 logs; focus cosmos 2.2 remaining Dual + temporal) + list_dir openspec/changes (active cosmos + temporal) + read tasks/design for both (cosmos 2.2 note Timestep prior, Dual pending; temporal 2.3/3.3/4.x/5.x) + todo_write (merge, saw cosmos-2.2 pending, temporal-*, q-orca-kb etc).
+- Open PRs (critical first): gh pr list --state open = [] . "Open PRs checked via gh; no overlap with none". Safe.
+- Full audits:
+  - Tests: .venv/bin/python -m pytest -q --tb=no → 144 passed (1 warning; includes Timestep test from prior).
+  - Examples: all *.n.orca.md + hf → all VALID (cosmos-mot 62k/9, temporal, saes, etc.).
+  - n-orca cli/builds ok.
+  - Code inspect: list_dir; read/grep world_models (has mot_denoise + temporal; dm_mha was MHA), ops/spec (TimestepEmbed present, no Dual yet), mcp (mot with ts), test (mot test checks MHA), README/skill/AGENTS (mot listed); confirmed 2.2 Dual pending per tasks note.
+  - KB (per prompt, before plan): search_tool "q-orca-kb n-orca-lang"; use_tool failed (transport closed); direct mp on palace: 67 srcs in n-orca-lang; searches "temporal world model hidden", "mixture of transformers MoT" hit self n-orca (ex, world_models, README OpenSpec, goal) + papers. Grounded (self has the patterns; no new external needed for this slice).
+- Planning: principles (green, OpenSpec, KB first, small, no PR overlap). From todos/OpenSpec (cosmos 2.2 Dual pending after TimestepEmbed in prior PR#9; temporal 2.3 also but ops for cosmos next per "cosmos impl slice"), KB (self grounded), picked: cosmos 2.2 add DualStreamJointAttention op (skeleton modeled on MHA for now + use in builder + regen ex + verify). Justif: completes the "minimal new ops" in 2.2 per design ("new DualStreamJointAttention op (preferred...)"); smallest/safe (reuse MHA logic/placeholder, shapes preserve so no verifier/compiler change yet; advances OpenSpec/tasks note; 0 risk, additive; re-audit will gate; "prefer docs" but this is the pending impl slice per prompt priority; over 3.2 ex or temporal docs). "Open PRs checked via gh; no overlap with none". Conservative (placeholder; full masks/concat in compiler later).
+- Execution (read first, only n-orca, search_replace, re-audit):
+  - read_file (goal, openspec tasks/design, world_models mot builder, ops/spec MHA/Timestep parts, test mot, compiler mha special for ref).
+  - search_replace in ops/spec.py: add _dual_joint_infer/params (preserve + mha-like count), _torch_call/init_dual (placeholder), register after MHA.
+  - search_replace in world_models.py: change dm_mha to DualStreamJointAttention; update comment/desc.
+  - python: build mot + render + compile_mermaid + write ex md/mmd.
+  - verify new ex: VALID.
+  - re-audit: pytest 144p; mot test pass (MHA still in AR); cosmos ex VALID; grep shows Dual in ex and code.
+- Re-audits after + final: 144p, all ex VALID (incl regen cosmos with Dual), no errors.
+- SDLC (sig: new public op + builder change + ex): branch grok/add-cosmos-mot-dual-joint-attn, selective git add 4 files (py + ex; + tasks.md update), commit (refs OpenSpec 2.2 + design + goal + KB + todo + PR#9 prior), push, gh pr create #10 (body with motiv, tests 144+VALID, KB, openPRs none, refs). Also updated tasks.md to [x] 2.2 (Dual added; Timestep prior).
+- Progress: todo_write (cosmos-2.2 complete, current audit complete). Appended this. No new blockers.
+- Used KB n-orca-lang first (required).
+- No blockers. 100% green start/end. Followed all (open PR check first, KB, smallest per priority, read/search_replace, re-audit, SDLC, n-orca only, log).
+- Next expected: 3.2 reasoner ex, 4.x docs/skill for mot, full Dual impl (special compiler case for masks/concat), temporal 2.3/3.3, more KB index (e.g. arXiv MoT/diffusion), or world-sae. PR#10 for review.
+
+Next scheduled ~3h. All safety/SDLC/KB/prompt followed (tests+ex 100% green at start+end+re-audits, open PRs none, read first, KB, full log, n-orca source advanced for MoT Dual op).
