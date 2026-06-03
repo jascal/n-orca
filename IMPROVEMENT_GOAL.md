@@ -29,14 +29,19 @@
 ## How to Work on This Goal
 1. Start each improvement cycle by reading this file + current `openspec/changes/` + `todo` state.
 2. Run audits: full tests, example verification, `n-orca info` / build on key examples.
-3. Pick the next smallest safe task from the active todo list.
-4. Implement, test thoroughly, update docs/examples as needed.
-5. Mark todos, update this goal file or use tools to log progress.
-6. If a cycle ends with no safe work possible, clearly state blockers.
+3. **Check open PRs first (critical SDLC rule)**: Always run `gh pr list --state open --json number,title,headRefName,files` (using run_terminal_command or gh tool) to list all open PRs and the files they touch. Only pick a task if:
+   - Its planned changes (files in OpenSpec, code in n_orca/, tests, examples, docs touched by the task) do **not** overlap with any files changed in an open PR.
+   - The task is not a re-implementation of work already submitted in an open PR (e.g., duplicate builder or same OpenSpec slice).
+   - If the task's work is already in an open PR, skip it. Instead, wait for human to paste review feedback for a future cycle to address, or pick a completely unrelated safe task (e.g., pure docs on untouched files, or KB indexing).
+   This rule prevents duplicate PRs, re-work, and scheduler cycles fighting open changes. It takes precedence over "smallest task".
+4. Pick the next smallest safe task from the active todo list (subject to the open-PRs check above).
+5. Implement, test thoroughly, update docs/examples as needed.
+6. Mark todos, update this goal file or use tools to log progress.
+7. If a cycle ends with no safe work possible, clearly state blockers.
 
 This goal is intended to be driven by recurring schedulers, background sub-agents, and interactive sessions with Grok. It should run "carefully but indefinitely" until the user decides the project has reached a stable mature state.
 
-Last updated: 2026-06-03 (scheduler cycle: cosmos 2.1 mot_denoise_step impl + test + ex + PR#6; KB n-orca-lang used; 142 tests; temporal remain + more cosmos slices pending).
+Last updated: 2026-06-03 (workflow fix: added explicit open-PRs check to How to Work + SDLC section + scheduler prompt to prevent selecting tasks that overlap open PRs or duplicate in-flight work, after PR#7 duplicate of merged PR#6).
 ## Recent Activity
 
 **2026-06-02 (initial setup by Grok during n-orca lead handoff)**:
@@ -102,11 +107,19 @@ The recurring improvement cycles focus on **safe development work**. The full so
 - `run_terminal_command` with `gh` (gh pr create, gh pr comment, gh pr merge, etc.).
 - All changes must still follow the Safety Rules (tests + example verification must be green before considering the task done).
 
+### Avoiding Duplicate Work on Open PRs (new rule to prevent re-execution of in-flight changes)
+- **Before every Planning phase** (step 3 in "How to Work", including inside the embedded scheduler prompt): Explicitly query open PRs.
+- Never select a task, create a branch, or open a new PR for work that touches files or OpenSpec changes already present in an open PR.
+- The scheduler must treat "work already in an open PR" as "blocked for new implementation". The correct action for in-flight work is to let the PR be reviewed/merged, then (if feedback is provided by pasting the review) use a future cycle to address nits on that PR's branch.
+- This rule was added after a scheduler cycle duplicated the `mot_denoise_step` work (creating PR#7 while PR#6 was open/being merged), leading to wasted effort and review overhead.
+- In practice: Run the gh list command early in the cycle. If all high-priority tasks (e.g. next OpenSpec slice) are covered by open PRs, fall back to safe unrelated work (e.g. KB paper indexing into n-orca-lang room, pure docs on untouched areas, or low-risk test additions elsewhere) or document "no safe non-overlapping work; waiting on PRs X,Y".
+
 ### Why this model?
 - Keeps the 3-hour cycles moving and productive ("carefully but indefinitely").
 - Ensures changes are properly reviewed via GitHub PRs when they matter.
 - Avoids the scheduler stalling forever waiting for humans.
 - Matches how real agent-driven development works in practice (as demonstrated in prior direct requests for branch/PR work on this repo).
+- Prevents the exact problem of re-audits "forgetting" that a PR is already in flight and re-doing the same slice.
 
 This section was added to make the full SDLC (commit → PR → review loop) an explicit, first-class part of the scheduled improvement process.
 
@@ -241,3 +254,13 @@ Next scheduled ~3h. All safety/SDLC/KB/prompt followed (tests+ex 100% green at s
 - Updated this log.
 
 Next scheduled ~3h. All rules followed.
+
+**2026-06-03 (fix scheduler SDLC workflow for open PRs)**:
+- User feedback: scheduler should not select/work on tasks that touch or duplicate open PRs (the PR#7 duplicate re-impl of mot_denoise_step after #6 was the symptom).
+- Updated "How to Work on This Goal" (new step 3: always gh pr list open PRs first; only pick non-overlapping tasks; skip if already in open PR).
+- Added dedicated subsection "Avoiding Duplicate Work on Open PRs" under SDLC section with concrete rules and the reason (PR#7 example).
+- Updated the embedded scheduler cycle instructions (in the recurring task prompt) to include the open-PRs check explicitly in the Planning phase.
+- Updated Last updated and added this Recent Activity entry.
+- Also updated AGENTS.md (see separate edit) to reflect the rule for agents.
+- This ensures future cycles (including 019e8a9e5f8e) will check `gh pr list` before picking from todos/OpenSpec and will prefer unrelated safe work if the next logical slice is already in a PR.
+- No code changes; pure docs/process fix. Tests/examples untouched.

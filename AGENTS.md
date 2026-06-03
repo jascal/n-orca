@@ -22,7 +22,9 @@ All non-trivial work should land through OpenSpec changes in `openspec/changes/`
 - Validate with `openspec validate <name>`.
 - Archive with `openspec archive <name>` when complete (or use the skill).
 
-There is a persistent top-level improvement goal defined in `IMPROVEMENT_GOAL.md`. A recurring scheduler (every 3 hours, ID 019e8a647036) drives careful, test-first improvement cycles against the todos and this goal.
+There is a persistent top-level improvement goal defined in `IMPROVEMENT_GOAL.md`. A recurring scheduler (every 3 hours, ID 019e8a9e5f8e) drives careful, test-first improvement cycles against the todos and this goal.
+
+**Important workflow rule (added to prevent duplicate work):** Before picking any task in a cycle, run `gh pr list --state open` (or equivalent) and ensure the chosen OpenSpec/todo item does not modify files or scope already present in an open PR. Do not re-implement work that's already in an open PR (e.g. a builder or slice). Address review feedback on existing PRs when pasted by the human instead. See the "Avoiding Duplicate Work on Open PRs" subsection in IMPROVEMENT_GOAL.md for full details.
 
 ## n-orca Agent Skills & MCP
 
