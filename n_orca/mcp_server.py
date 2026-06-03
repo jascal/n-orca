@@ -346,6 +346,7 @@ def build_world_model(
         embed_dim / n_heads / dropout: attention variant only
         gru_hidden: state size for temporal variant
         timestep_dim: timestep embedding dim for mot variant
+            Example: build_world_model("mot", embed_dim=64, n_heads=4, gru_hidden=128, timestep_dim=32)
         name: override architecture name
     """
     variant = (variant or "").lower()
