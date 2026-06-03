@@ -272,6 +272,11 @@ Next scheduled ~3h. All rules followed.
 - Committed + pushed 4231dc0.
 - Re-audit: 143p, mcp 6p, ex VALID.
 
+**2026-06-03 (PR#8 nit 3 polish)**:
+- Updated skill example to `/n-orca-build-world-model mot --d_model 64 --timestep_dim 32` (addressed remaining nit 3).
+- Committed 53bf815.
+- Full green.
+
 Next scheduled ~3h. All rules followed.
 
 **2026-06-03 (scheduled cycle - mcp timestep_dim for mot + full audit + KB + SDLC PR#8)**:
