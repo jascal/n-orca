@@ -6,7 +6,7 @@
 ## 2. Implementation (n-orca core)
 - [x] 2.1 Add `mot_denoise_step(...)` (primary) + `mot_reasoner_only(...)` (and optional fuller) builders in `n_orca/world_models.py`. Return Architecture with dual-stream tensors, timestep, appropriate layers/flows for MoT (AR causal path, DM joint path, timestep embed + inject). Docstring references subagent/Cosmos report + "external diffusion schedule like temporal hidden carry". Handle dual-output or main DM out. (Done in scheduler cycle: builder using existing ops per design "smallest slice", + test + ex + verify green; mcp wire 2.3 later.)
 - [ ] 2.2 Add minimal new ops (or extend) in `n_orca/ops/spec.py`: `TimestepEmbed` (or DiffusionTimestep; sinusoidal/learned, pytorch_call), `DualStreamJointAttention` (params for d_model/n_heads; special _torch_call handling concat AR/DM K/V + causal_AR vs bidirectional_DM masks; register). Update any shape inference if needed. (Can start with flows using existing ops + document joint in example if op too heavy for first slice.)
-- [ ] 2.3 Wire new variant(s) into `n_orca/mcp_server.py::build_world_model` (add cases for "mot_denoise", "mot_reasoner", etc. + relevant kwargs like timestep_dim; update docstring and error msgs). Ensure CLI/MCP exposure works.
+- [x] 2.3 Wire new variant(s) into `n_orca/mcp_server.py::build_world_model` (add cases for "mot_denoise", "mot_reasoner", etc. + relevant kwargs like timestep_dim; update docstring and error msgs). Ensure CLI/MCP exposure works.
 - [ ] 2.4 (Optional in slice) Minor verifier tweaks if new invariants (e.g. causal note) or shape rules for dual streams.
 
 ## 3. Examples & Tests
@@ -17,7 +17,7 @@
 
 ## 4. Docs & Sync
 - [ ] 4.1 Update `n-orca/.claude/skills/n-orca-build-world-model/SKILL.md` (add MoT/Cosmos variants to description, list, example usage; note for Physical AI / diffusion world models + future -sae).
-- [ ] 4.2 Update README.md (SAE & World Model builders section; list new variants; Current OpenSpec Changes callout; ecosystem note linking to subagent report / new possibilities for world-sae).
+- [x] 4.2 Update README.md (SAE & World Model builders section; list new variants; Current OpenSpec Changes callout; ecosystem note linking to subagent report / new possibilities for world-sae). (Done in scheduler cycle 2026-06-03 via pure docs PR#5; skill 4.1 was pre-updated in 2.1 slice.)
 - [ ] 4.3 Mark status in `docs/proposed-sae-extensions.md` (or add MoT section) with date; cross-ref "use n-orca as shared source of truth".
 - [ ] 4.4 Update AGENTS.md if process notes needed; optionally IMPROVEMENT_GOAL focus areas mention Physical AI world models.
 - [ ] 4.5 (Post-impl) Consider scripts/generate_* or sibling doc regen if they cover world models.
