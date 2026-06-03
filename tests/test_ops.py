@@ -11,6 +11,7 @@ def test_registered_ops_present():
     must_have = {
         "Linear", "LayerNorm", "Conv2d", "MultiHeadAttention",
         "Add", "Concat", "Flatten", "ReLU", "GELU", "Embedding", "Mean",
+        "TimestepEmbed",
     }
     assert must_have.issubset(names)
 
@@ -29,6 +30,16 @@ def test_linear_replaces_last_dim():
 def test_linear_params():
     spec = get_op("Linear")
     assert spec.params(["10", "20"], []) == 10 * 20 + 20
+
+
+def test_timestep_embed_reuses_linear_infer_and_params():
+    spec = get_op("TimestepEmbed")
+    out = spec.infer(["10", "20"], [("B", "S", "10")])
+    assert out == ("B", "S", "20")
+    assert spec.params(["10", "20"], []) == 10 * 20 + 20
+    # Distinct from Linear spec
+    linear_spec = get_op("Linear")
+    assert spec is not linear_spec
 
 
 def test_conv2d_same_padding_preserves_symbolic_dims():

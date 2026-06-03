@@ -127,6 +127,22 @@ def _linear_params(args, shapes):
     return ai * ao + ao
 
 
+def _timestep_embed_infer(args, shapes):
+    _require_arity("TimestepEmbed", 1, len(shapes))
+    if len(args) < 2:
+        raise ShapeRuleError("TimestepEmbed requires (in, out) args")
+    return _replace_last(shapes[0], args[1])
+
+
+def _timestep_embed_params(args, shapes):
+    if len(args) < 2:
+        return 0
+    ai, ao = _try_int(args[0]), _try_int(args[1])
+    if ai is None or ao is None:
+        return 0
+    return ai * ao + ao
+
+
 def _layernorm_infer(args, shapes):
     _require_arity("LayerNorm", 1, len(shapes))
     return shapes[0]
@@ -381,6 +397,12 @@ def _register(spec: OpSpec) -> None:
 _register(OpSpec(
     "Linear", 1,
     infer=_linear_infer, params=_linear_params,
+    pytorch_init=_torch_init_simple("Linear"),
+    pytorch_call=_torch_call_module,
+))
+_register(OpSpec(
+    "TimestepEmbed", 1,
+    infer=_timestep_embed_infer, params=_timestep_embed_params,
     pytorch_init=_torch_init_simple("Linear"),
     pytorch_call=_torch_call_module,
 ))
