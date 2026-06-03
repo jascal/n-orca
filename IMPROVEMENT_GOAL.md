@@ -36,7 +36,7 @@
 
 This goal is intended to be driven by recurring schedulers, background sub-agents, and interactive sessions with Grok. It should run "carefully but indefinitely" until the user decides the project has reached a stable mature state.
 
-Last updated: 2026-06-03 (added OpenSpec for Cosmos 3 / MoT after subagent investigation; temporal PR #3 pending review).
+Last updated: 2026-06-03 (scheduler refreshed with latest prompt incl. q-orca-kb n-orca-lang resource + current OpenSpec state; back to autonomous recurring 3h cycles).
 ## Recent Activity
 
 **2026-06-02 (initial setup by Grok during n-orca lead handoff)**:
@@ -179,3 +179,31 @@ Next scheduled ~3h (or manual "run next improvement cycle"). All rules followed 
 - Per review: "Solid continuation of the handoff — looking forward to the next refinements (full GRU, shape inference..., integration examples)."
 
 All per safety (tests/examples re-verified after edits), SDLC (branch/push/merge via gh for the PR), and goal process.
+
+**2026-06-03 (q-orca-kb expansion: n-orca-lang room)**:
+- Coordinated with user to expand the shared q-orca-kb (now beyond pure quantum, with orca-lang / q-orca-lang rooms) to include an `n-orca-lang` room under `q-orca-implementations` wing.
+- Added `n-orca-lang-wiki` CrawlConfig in q-orca-kb/q_orca_kb/crawlers/site_configs.py (deepwiki.com/jascal/n-orca seed, same patterns as siblings, room="n-orca-lang").
+- Updated tests (test_mcp_crawl_site.py) and tool descriptions in q-orca-kb MCP.
+- Seeded the room immediately with comprehensive local content via direct indexer: all main .py modules (world_models with temporal, sae, ops, verifier, compiler, mcp_server, hf adapters, parser, render, ast), docs (README, AGENTS, IMPROVEMENT_GOAL, grammar, proposed-sae-extensions, verification), and all examples (.n.orca.md + .mmd).
+- Ran the new crawl_site-equivalent for n-orca-lang-wiki (partial due to DeepWiki JS "Loading..." pages; main page indexed).
+- Result: 62 sources, 533 drawers in the room. Semantic search works well for n-orca concepts (temporal_world_model, build_world_model, hidden_update, etc.).
+- Updated n-orca/AGENTS.md to document the new KB integration for agents.
+- Note: MCP stdio transport for q-orca-kb was closed in this session after process management (doctor can start fresh instances; Claude agent informed and will drive crawls via its MCP connection). Direct Python access to the palace works. Full crawl via MCP "n-orca-lang-wiki" can be triggered by Claude or future cycles.
+- This makes n-orca first-class in the shared Orca-family knowledge base for papers, docs, and cross-project grounding.
+
+Next scheduled ~3h (or manual "run next improvement cycle"). All rules followed.
+
+**2026-06-03 (scheduler refresh for continued waiting mode)**:
+- User indicated "back to waiting for the scheduler to do more" after q-orca-kb n-orca-lang work and side tasks.
+- Deleted previous scheduler (019e8a68c057) which had outdated embedded prompt.
+- Created fresh recurring scheduler (ID 019e8a9e5f8e, every 3h, recurring true, fireImmediately false) with fully updated self-driving prompt. The prompt now:
+  - References latest IMPROVEMENT_GOAL (including q-orca-kb n-orca-lang as resource to use via search_tool + use_tool for q-orca-kb__* when researching n-orca topics like temporal, MoT, world models, language design, SAEs).
+  - Incorporates current OpenSpec pending tasks (temporal 2.3/3.3/4.x/5.x; full cosmos 2-5 impl starting with smallest mot builder slice).
+  - Updated todos (improve-11+, temporal-*, q-orca-kb-n-orca).
+  - Full cycle: read goal/openspec/todos, audits (pytest + n-orca verify using .venv), pick smallest safe (prefer cosmos 2.1 or temporal polish), execute safely only in n-orca, re-verify, SDLC/PR for sig changes, log to this file + todo_write.
+  - Explicitly calls out leveraging q-orca-kb n-orca-lang room (search_papers room="n-orca-lang" for relevant papers before/during design).
+- Current health: 141 tests, examples valid, 2 active OpenSpecs with research done, room for safe progress on impl/docs.
+- Scheduler will now fire periodically for careful indefinite improvement. Next fire in ~3h. Can be manually triggered or monitored via scheduler_list / get etc.
+- All per principles. Ready for autonomous cycles.
+
+Next scheduled ~3h. 
