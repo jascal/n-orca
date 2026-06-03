@@ -36,7 +36,7 @@
 
 This goal is intended to be driven by recurring schedulers, background sub-agents, and interactive sessions with Grok. It should run "carefully but indefinitely" until the user decides the project has reached a stable mature state.
 
-Last updated: 2026-06-03 (added OpenSpec for Cosmos 3 / MoT after subagent investigation; temporal PR #3 pending review).
+Last updated: 2026-06-03 (scheduler cycle: cosmos 2.1 mot_denoise_step impl + test + ex + PR#6; KB n-orca-lang used; 142 tests; temporal remain + more cosmos slices pending).
 ## Recent Activity
 
 **2026-06-02 (initial setup by Grok during n-orca lead handoff)**:
@@ -192,3 +192,37 @@ All per safety (tests/examples re-verified after edits), SDLC (branch/push/merge
 - This makes n-orca first-class in the shared Orca-family knowledge base for papers, docs, and cross-project grounding.
 
 Next scheduled ~3h (or manual "run next improvement cycle"). All rules followed.
+
+**2026-06-03 (scheduled cycle - start cosmos MoT impl slice 2.1 mot_denoise_step + full audit + KB + SDLC PR#6)**:
+- Started per scheduler prompt exactly: "Start now with full audit + read goal + openspec + todos." + use search_tool for q-orca-kb/n-orca then use_tool q-orca-kb__* (room="n-orca-lang", queries "temporal world model", "mixture of transformers", "diffusion", "language design", "neural architecture", "world model", "SAE", "formal methods for DAGs" etc) + "pick the NEXT SMALLEST, SAFEST, HIGHEST-VALUE task aligned with priorities (temporal remaining or start cosmos impl slice (smallest: builder for mot_denoise_step using existing ops where possible + test + example + verify))" + "Prefer pure docs/tests first if possible. Use q-orca-kb for research before impl" + "Always: read_file before edit, search_replace, re-audit green, 100% green small steps, n-orca only, SDLC if sig, log detailed, use KB n-orca-lang".
+- Read full IMPROVEMENT_GOAL.md (194 lines, Recent ends at q-orca-kb expansion; Last updated old; focus temporal remain + cosmos), list_dir openspec/changes (active temporal + cosmos), read full proposal/design/tasks.md for both (temporal: 2.3/3.3/4.x/5.x remain; cosmos: all 2-5 pending, 2.1 smallest per design "start with one primary builder+ex using exist ops").
+- todo_write (merge) to load/manage (legacy + new current-cycle, improve-11, cosmos-2.1, temporal-*, q-orca-kb-use etc).
+- Full audits:
+  - Tests: .venv/bin/python -m pytest -q --tb=no → 141 passed (1 harmless; confirms no mot yet, temporal present).
+  - Examples verify: all top-level + sample hf `n-orca verify` → all VALID (econ-temporal present/VALID, no cosmos-mot ex yet; 16+ others).
+  - n-orca cli + builds ok.
+  - Code inspect: list_dir n_orca/ examples/; read_file world_models.py (ends at temporal, no mot, docstring old), mcp_server.py (temporal only, error msg no mot), test_sae... (has temporal test, ~25 tests, no mot), skill (temporal listed, no mot), README (OpenSpec callout has both, but builders list only to attn, badge 141, 4.x pending), AGENTS (KB noted); grep no "mot_denoise".
+  - OpenSpec: cosmos 2.1 builder pending (design says use exist ops for first slice, note joint for later; external like temporal).
+- KB (per prompt, before planning):
+  - search_tool "q-orca-kb" (got list_seeds, server_status, kb_status, list_crawl_sites, index_seeds, search_papers etc), "n-orca", "q-orca-kb__list_sources".
+  - use_tool q-orca-kb__list_sources (room=), q-orca-kb__search_papers (queries+room) → "Transport closed" (MCP known issue).
+  - Direct fallback (mp_list_sources/mp_search + DEFAULT_PALACE): 67 sources in n-orca-lang (q-orca-implementations); samples the 5 lang-design arXiv PDFs; searches for "temporal world model hidden_update", "mixture of transformers OR MoT diffusion", "diffusion transformer", "formal methods DAG neural language design", "world model SAE" → hits n-orca self docs (goal/OpenSpec chunks, world_models descs, README) + language papers. Confirmed SITE_CONFIGS n-orca-lang-wiki present.
+  - Grounding: n-orca self is strong source (temporal/MoT patterns in OpenSpec/goal); lang design papers useful for DSL; no external MoT/diffusion papers yet (self + design.md sufficient; noted for possible future q-orca-kb index of arXiv "diffusion transformer" etc, but not blocking smallest slice).
+- Planning: Reviewed principles (safety/green gate, OpenSpec, n-orca source truth for econ + now cosmos per subagent, docs quality, small steps, KB first, no wait). From todos/OpenSpec (cosmos 2.1 pending smallest per prompt explicit "builder for mot_denoise_step using existing ops where possible + test + example + verify"; temporal 4.x/2.3 also but docs/ops heavier), KB (self grounded, no paper forcing new op now), picked: cosmos 2.1 mot_denoise_step (builder using exist ops + test + ex + verify; mcp/skill later). Justif: smallest/safest per design ("start with primary builder+ex", "reuse/extend existing... or document joint in ex if op too heavy for first slice"), directly priority "starting cosmos impl slice", advances OpenSpec acceptance (verifiable builder/ex/MCP later, no break), 0 risk to existing (additive like temporal), tests/ex will gate, prefer not pure docs since impl pending and prompt specifies the builder slice. (Could have done more README but cosmos 2.1 higher per "prioritize ... cosmos impl slice").
+- Execution (read-first, only n-orca, search_replace, re-audit):
+  - read_file (goal parts/tail, openspec tasks x2, world_models end+top, test end, skill, README sections, mcp, design for exact decisions).
+  - search_replace: 1. world_models.py top docstring (add mot desc). 2. append full mot_denoise_step func (tensors AR/DM/t, layers AR causal + DM+ts, flows residual, docstring refs, hypers, no invariant, using exist ops + notes per design).
+  - Then python: build+verify(VALID, 62k params)+render+mmd.
+  - Generate ex: write examples/cosmos-mot-denoise-step.n.orca.md + .mmd via builder/render.
+  - Verify new ex: VALID.
+  - search_replace test file: add test_mot... after temporal test (assert dual tensors, MHA, ts_embed, valid).
+  - Run: specific test pass; full pytest 142 pass; full ex sweep all VALID (new + prior).
+  - Re-reads/greps for inspect.
+- Re-audits after groups + final: 142p, all ex VALID (incl new 62,528p/Depth9), no errors.
+- SDLC (sig: new public builder per goal): on grok/add-cosmos-mot-denoise-step (new name, prior existed), selective git add (4 files: world_models, test, 2 ex), commit (msg refs OpenSpec 2.1 + improve-11 + goal + subagent), push -u, gh pr create #6 (title/body with motiv, tests 142+VALID, KB details, OpenSpec refs, no wait). PR: https://github.com/jascal/n-orca/pull/6
+- Progress: todo_write (improve-11, cosmos-2.1/3.1/3.3, q-orca-kb-use, current complete; noted mcp 2.3 pending). No new blockers surfaced. OpenSpec tasks not edited (builder is code; docs later per scope).
+- Used KB n-orca-lang first (as required).
+- No blockers. 100% green. Followed every rule (reads first, KB, smallest per explicit, verify before/after, SDLC, n-orca only, log).
+- Next expected: future cycle (after PR#6 review/feedback if pasted) can do 2.3 mcp wire + update skill/error, or 3.2 more ex (reasoner), or 4.x docs (README builders list, since current lags even temporal), or temporal 2.3/3.3/4.x, or index more papers (e.g. arXiv on MoT/diffusion) to n-orca-lang room via q-orca-kb, or world-sae stub. PR#6 for review.
+
+Next scheduled ~3h. All safety/SDLC/KB/prompt followed (tests+ex 100% green at start+end+re-audits, read/search_replace, conservative slice using exist ops, full log, n-orca source advanced for MoT).
