@@ -1,17 +1,19 @@
 """Builders for the non-LLM "world models" used as SAE training substrates.
 
-These cover econ-sae's variants (including temporal for regime features):
+These cover econ-sae's variants (including temporal for regime features) and Cosmos 3-style MoT:
 
 - `world_model`        — baseline 2-hidden-layer MLP (the H1 hidden layer is
                           the canonical SAE training substrate)
 - `deep_world_model`   — 3+ hidden layers, otherwise identical
 - `attn_world_model`   — per-agent multi-head self-attention before the MLP
 - `temporal_world_model` — attn + explicit state carry (hidden tensor) for cross-period context
+- `mot_denoise_step` — MoT dual-tower (AR reasoner causal + DM generator bidirectional + timestep) per-denoise-step DAG for Cosmos 3-style diffusion/multimodal world models (external schedule like temporal). Enables physics-rich SAE GT.
 
 These architectures are intentionally small (43-dim input, ~100-dim hidden)
 and so verify and render quickly — they're useful as the "ground truth" side
 of an SAE pipeline where the SAE features are scored against known structure.
 The temporal variant enables encoding regime/windowed features per econ-sae research.
+The mot variant supports diffusion-conditioned dual-stream patterns per subagent Cosmos investigation.
 """
 from __future__ import annotations
 
@@ -320,7 +322,7 @@ def mot_denoise_step(
     *,
     d_model: int = 64,
     n_heads: int = 4,
-    timestep_dim: int = 32,
+    timestep_dim: int = 128,
     h1_dim: int = 128,
     h2_dim: int = 64,
     name: str = "MoTDenoiseStep",
@@ -374,7 +376,7 @@ def mot_denoise_step(
     arch.layers.append(Layer(name="ar_add", op=OpCall("Add", [])))
     arch.layers.append(Layer(name="ar_out", is_output=True, description="AR output (reasoning result)"))
 
-    # DM generator path + timestep + joint (joint via concat in full impl; here DM self + note)
+    # DM generator path + timestep + joint (joint via concat in full impl; here DM self + cross note)
     arch.layers.append(Layer(name="ts_embed", op=OpCall("Linear", ["timestep_dim", "d_model"]),
                               description="Timestep projection (sinusoidal in DiT; Linear here for toy)"))
     arch.layers.append(Layer(name="dm_ln", op=OpCall("LayerNorm", ["d_model"])))

@@ -4,16 +4,16 @@
 - [x] 1.3 Create design.md for the chosen approach (per-step explicit AR/DM + timestep tensors; dual-tower via layers + joint attn op/flow; reuse + minimal new ops; external iteration like temporal; toy verifiable specs). Reference proposal, subagent report §6, and temporal design precedent.
 
 ## 2. Implementation (n-orca core)
-- [x] 2.1 Add `mot_denoise_step(...)` (primary) + `mot_reasoner_only(...)` (and optional fuller) builders in `n_orca/world_models.py`. Return Architecture with dual-stream tensors, timestep, appropriate layers/flows for MoT (AR causal path, DM joint path, timestep embed + inject). Docstring references subagent/Cosmos report + "external diffusion schedule like temporal hidden carry". Handle dual-output or main DM out. (Smallest slice done: builder + test + example + verify; uses existing ops, ts Linear.)
+- [x] 2.1 Add `mot_denoise_step(...)` (primary) + `mot_reasoner_only(...)` (and optional fuller) builders in `n_orca/world_models.py`. Return Architecture with dual-stream tensors, timestep, appropriate layers/flows for MoT (AR causal path, DM joint path, timestep embed + inject). Docstring references subagent/Cosmos report + "external diffusion schedule like temporal hidden carry". Handle dual-output or main DM out. (Done in scheduler cycle: builder using existing ops per design "smallest slice", + test + ex + verify green; mcp wire 2.3 later.)
 - [ ] 2.2 Add minimal new ops (or extend) in `n_orca/ops/spec.py`: `TimestepEmbed` (or DiffusionTimestep; sinusoidal/learned, pytorch_call), `DualStreamJointAttention` (params for d_model/n_heads; special _torch_call handling concat AR/DM K/V + causal_AR vs bidirectional_DM masks; register). Update any shape inference if needed. (Can start with flows using existing ops + document joint in example if op too heavy for first slice.)
 - [x] 2.3 Wire new variant(s) into `n_orca/mcp_server.py::build_world_model` (add cases for "mot_denoise", "mot_reasoner", etc. + relevant kwargs like timestep_dim; update docstring and error msgs). Ensure CLI/MCP exposure works.
 - [ ] 2.4 (Optional in slice) Minor verifier tweaks if new invariants (e.g. causal note) or shape rules for dual streams.
 
 ## 3. Examples & Tests
-- [x] 3.1 Add `examples/cosmos-mot-denoise-step.n.orca.md` + `.mmd` (generated via builder + render + compile_mermaid; or manual from design sketch). Must `n-orca verify` → VALID and compile to PyTorch runnable stub.
+- [x] 3.1 Add `examples/cosmos-mot-denoise-step.n.orca.md` + `.mmd` (generated via builder + render + compile_mermaid; or manual from design sketch). Must `n-orca verify` → VALID and compile to PyTorch runnable stub. (Generated + VALID in 2.1 cycle.)
 - [ ] 3.2 Add at least one more (e.g. `cosmos-mot-reasoner.n.orca.md`) demonstrating AR-only causal tower.
-- [x] 3.3 Add tests in `tests/test_sae_and_world_models.py` (e.g. `test_mot_world_model_has_dual_streams_and_timestep()`, checks tensors/layers/flows include joint/timestep, MHA or custom, compiles; similar to temporal test). Total tests increase; full suite green.
-- [x] 3.4 Full `n-orca verify --all-examples` (or equivalent sweep) + `python -m pytest -q` (must stay 100% pass + all VALID, including prior econ/temporal/sae examples). (Audit in cycle: 142 pass, all incl new VALID.)
+- [x] 3.3 Add tests in `tests/test_sae_and_world_models.py` (e.g. `test_mot_world_model_has_dual_streams_and_timestep()`, checks tensors/layers/flows include joint/timestep, MHA or custom, compiles; similar to temporal test). Total tests increase; full suite green. (Added + 142p in cycle.)
+- [x] 3.4 Full `n-orca verify --all-examples` (or equivalent sweep) + `python -m pytest -q` (must stay 100% pass + all VALID, including prior econ/temporal/sae examples). (Full sweep green post change.)
 
 ## 4. Docs & Sync
 - [ ] 4.1 Update `n-orca/.claude/skills/n-orca-build-world-model/SKILL.md` (add MoT/Cosmos variants to description, list, example usage; note for Physical AI / diffusion world models + future -sae).
