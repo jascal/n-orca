@@ -205,6 +205,10 @@ def test_mot_denoise_step_has_dual_streams_and_timestep():
     assert rep.valid, [e.code for e in rep.errors]
     tensor_names = {t.name for t in arch.tensors}
     assert "ar_x" in tensor_names and "dm_x_noisy" in tensor_names and "t" in tensor_names and "dm_x_denoised" in tensor_names
+    # Shape check for denoised output (nit from PR #7 review)
+    dm_noisy = next(t for t in arch.tensors if t.name == "dm_x_noisy")
+    dm_denoised = next(t for t in arch.tensors if t.name == "dm_x_denoised")
+    assert dm_denoised.shape == dm_noisy.shape
     # Should have MultiHeadAttention
     ops = {ly.op.name for ly in arch.layers if ly.op}
     assert "MultiHeadAttention" in ops
