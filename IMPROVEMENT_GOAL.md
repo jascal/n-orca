@@ -255,6 +255,20 @@ Next scheduled ~3h. All safety/SDLC/KB/prompt followed (tests+ex 100% green at s
 
 Next scheduled ~3h. All rules followed.
 
+**2026-06-03 (address PR #8 review nits + merge)**:
+- PR #8 (MCP timestep_dim for mot) received ✅ Approved review with 3 minor nits.
+- Addressed on PR branch:
+  - Nit 1: Enhanced docstring example for `timestep_dim` (added full call example with gru_hidden + timestep_dim).
+  - Nit 2: Added `test_build_world_model_mot_with_timestep_dim()` in `test_mcp_server.py` (MCP tests now 6 passing).
+  - Nit 3: Deferred per review (README/skill mentions already present from prior work).
+- Committed nits: b074b49.
+- Pushed, added review response comment, then `gh pr merge 8 --merge`.
+- Merged cleanly into main (fast-forward on local).
+- No further OpenSpec/tasks changes needed (2.3 already [x]; this was polish).
+- Full re-audit: 142p + MCP tests green + mcp mot call with custom ts dim VALID.
+
+Next scheduled ~3h. All rules followed.
+
 **2026-06-03 (scheduled cycle - mcp timestep_dim for mot + full audit + KB + SDLC PR#8)**:
 - Started per scheduler prompt: full read prompt + goal (last has workflow fix + PR#7 nits + previous 2.1 logs) + openspec/changes (list_dir + read tasks for temporal: 2.3/3.3/4.2/4.3/5.x remain; cosmos: 2.2/3.2/4.1/4.3+ pending, 2.1/2.3/3.1/3.3/4.2 done per file) + todo_write (merge to see pending).
 - Open PRs check (critical, first in planning): gh pr list --state open = [] (none). "Open PRs checked via gh; no overlap with none". Safe to pick any.
