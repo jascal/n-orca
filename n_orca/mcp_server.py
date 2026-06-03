@@ -326,6 +326,7 @@ def build_world_model(
     embed_dim: int = 64,
     n_heads: int = 4,
     gru_hidden: int = 128,
+    timestep_dim: int = 128,
     out_dim: int = 23,
     dropout: float = 0.0,
     name: str | None = None,
@@ -344,6 +345,7 @@ def build_world_model(
         hidden_dims: list of hidden widths (deep variant only)
         embed_dim / n_heads / dropout: attention variant only
         gru_hidden: state size for temporal variant
+        timestep_dim: timestep embedding dim for mot variant
         name: override architecture name
     """
     variant = (variant or "").lower()
@@ -367,10 +369,12 @@ def build_world_model(
             h1_dim=h1_dim, h2_dim=h2_dim, **common,
         )
     elif variant in ("mot", "mot_denoise", "cosmos_mot", "mot_world_model"):
+        mot_kw = {"name": name} if name else {}
         arch = _wm.mot_denoise_step(
             d_model=embed_dim, n_heads=n_heads,
+            timestep_dim=timestep_dim,
             h1_dim=h1_dim, h2_dim=h2_dim,
-            **common,
+            **mot_kw,
         )
     else:
         return {"error": f"unknown variant {variant!r}; expected 'baseline' | 'deep' | 'attn' | 'temporal' | 'mot'"}
