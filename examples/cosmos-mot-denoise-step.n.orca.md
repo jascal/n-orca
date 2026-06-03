@@ -46,8 +46,8 @@
 > AR output (reasoning result)
 
 ## layer ts_embed
-> Timestep projection (sinusoidal in DiT; Linear here for toy)
-- op: Linear(timestep_dim, d_model)
+> Timestep projection (sinusoidal in DiT; dedicated TimestepEmbed op (learned Linear for toy; see 2.2 OpenSpec)
+- op: TimestepEmbed(timestep_dim, d_model)
 
 ## layer dm_ln
 - op: LayerNorm(d_model)

@@ -385,6 +385,12 @@ _register(OpSpec(
     pytorch_call=_torch_call_module,
 ))
 _register(OpSpec(
+    "TimestepEmbed", 1,
+    infer=_linear_infer, params=_linear_params,
+    pytorch_init=_torch_init_simple("Linear"),
+    pytorch_call=_torch_call_module,
+))
+_register(OpSpec(
     "LayerNorm", 1,
     infer=_layernorm_infer, params=_layernorm_params,
     pytorch_init=_torch_init_simple("LayerNorm"),

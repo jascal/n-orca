@@ -339,8 +339,8 @@ def mot_denoise_step(
 
     Tensors use (B, S_ar + S_dm, d_model) conceptually; here split for clarity.
     """
-    # AR/DM towers use separate MHA for now; true DualStreamJointAttention op (with concat/mask special-case)
-    # planned for 2.2 per design.
+    # AR/DM towers use separate MHA for now; TimestepEmbed op added (this slice); true DualStreamJointAttention op (with concat/mask special-case)
+    # planned for remaining 2.2 per design.
     arch = Architecture(
         name=name,
         description=(
@@ -379,8 +379,8 @@ def mot_denoise_step(
     arch.layers.append(Layer(name="ar_out", is_output=True, description="AR output (reasoning result)"))
 
     # DM generator path + timestep + joint (joint via concat in full impl; here DM self + cross note)
-    arch.layers.append(Layer(name="ts_embed", op=OpCall("Linear", ["timestep_dim", "d_model"]),
-                              description="Timestep projection (sinusoidal in DiT; Linear here for toy)"))
+    arch.layers.append(Layer(name="ts_embed", op=OpCall("TimestepEmbed", ["timestep_dim", "d_model"]),
+                              description="Timestep projection (sinusoidal in DiT; dedicated TimestepEmbed op (learned Linear for toy; see 2.2 OpenSpec)"))
     arch.layers.append(Layer(name="dm_ln", op=OpCall("LayerNorm", ["d_model"])))
     arch.layers.append(Layer(name="dm_mha", op=OpCall("MultiHeadAttention", ["d_model", "n_heads", "0.0"]),
                               description="DM joint attn (bidir over AR+DM in full MoT; self here + cross note)"))
