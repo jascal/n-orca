@@ -53,8 +53,8 @@
 - op: LayerNorm(d_model)
 
 ## layer dm_mha
-> DM joint attn (bidir over AR+DM in full MoT; self here + cross note)
-- op: MultiHeadAttention(d_model, n_heads, 0.0)
+> DM joint attn (bidir over AR+DM in full MoT; uses DualStreamJointAttention op with concat/mask special-case planned)
+- op: DualStreamJointAttention(d_model, n_heads, 0.0)
 
 ## layer dm_add
 - op: Add()

@@ -339,8 +339,7 @@ def mot_denoise_step(
 
     Tensors use (B, S_ar + S_dm, d_model) conceptually; here split for clarity.
     """
-    # AR/DM towers use separate MHA for now; TimestepEmbed op added (this slice); true DualStreamJointAttention op (with concat/mask special-case)
-    # planned for remaining 2.2 per design.
+    # AR uses MHA (causal); DM uses DualStreamJointAttention (for joint over AR+DM + mask); TimestepEmbed for ts. Full special-case impl in compiler for 2.2 per design.
     arch = Architecture(
         name=name,
         description=(
@@ -382,8 +381,8 @@ def mot_denoise_step(
     arch.layers.append(Layer(name="ts_embed", op=OpCall("TimestepEmbed", ["timestep_dim", "d_model"]),
                               description="Timestep projection (sinusoidal in DiT; dedicated TimestepEmbed op (learned Linear for toy; see 2.2 OpenSpec)"))
     arch.layers.append(Layer(name="dm_ln", op=OpCall("LayerNorm", ["d_model"])))
-    arch.layers.append(Layer(name="dm_mha", op=OpCall("MultiHeadAttention", ["d_model", "n_heads", "0.0"]),
-                              description="DM joint attn (bidir over AR+DM in full MoT; self here + cross note)"))
+    arch.layers.append(Layer(name="dm_mha", op=OpCall("DualStreamJointAttention", ["d_model", "n_heads", "0.0"]),
+                              description="DM joint attn (bidir over AR+DM in full MoT; uses DualStreamJointAttention op with concat/mask special-case planned)"))
     arch.layers.append(Layer(name="dm_add", op=OpCall("Add", [])))
     arch.layers.append(Layer(name="dm_fc1", op=OpCall("Linear", ["d_model", "h1_dim"])))
     arch.layers.append(Layer(name="dm_act1", op=OpCall("ReLU", [])))

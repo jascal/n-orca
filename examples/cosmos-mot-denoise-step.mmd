@@ -9,7 +9,7 @@ flowchart TD
     ar_out(("ar_out<br/>[output]"))
     ts_embed["ts_embed<br/>TimestepEmbed(timestep_dim, d_model)"]
     dm_ln["dm_ln<br/>LayerNorm(d_model)"]
-    dm_mha["dm_mha<br/>MultiHeadAttention(d_model, n_heads, 0.0)"]
+    dm_mha["dm_mha<br/>DualStreamJointAttention(d_model, n_heads, 0.0)"]
     dm_add["dm_add<br/>Add()"]
     dm_fc1["dm_fc1<br/>Linear(d_model, h1_dim)"]
     dm_act1["dm_act1<br/>ReLU()"]
