@@ -267,6 +267,11 @@ Next scheduled ~3h. All rules followed.
 - No further OpenSpec/tasks changes needed (2.3 already [x]; this was polish).
 - Full re-audit: 142p + MCP tests green + mcp mot call with custom ts dim VALID.
 
+**2026-06-03 (post PR#8 merge polish)**:
+- Updated README badge to 143 passing, mcp test count to 6 (incl mot timestep), and run note (after adding the MCP test in nits address).
+- Committed + pushed 4231dc0.
+- Re-audit: 143p, mcp 6p, ex VALID.
+
 Next scheduled ~3h. All rules followed.
 
 **2026-06-03 (scheduled cycle - mcp timestep_dim for mot + full audit + KB + SDLC PR#8)**:
