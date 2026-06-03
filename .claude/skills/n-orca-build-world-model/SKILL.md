@@ -16,7 +16,8 @@ Variants:
 
 Example: /n-orca-build-world-model attn --h1_dim 96
 Example: /n-orca-build-world-model temporal --gru_hidden 128
-Example: /n-orca-build-world-model mot --d_model 64
+Example: /n-orca-build-world-model mot --d_model 64 --timestep_dim 32
+ (timestep_dim now exposed via MCP after PR#8)
 
 Returns the .n.orca.md definition (optionally writes files).
 
