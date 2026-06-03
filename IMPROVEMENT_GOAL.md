@@ -27,6 +27,9 @@
 - Release hygiene (version bumps, changelogs, CI robustness).
 
 ## How to Work on This Goal
+
+**Current active scheduler (as of this edit):** 1 running 3-hour recurring loop (ID 019e8d4f094e, created 2026-06-03 after deleting prior instance 019e8a9e5f8e during the open-PRs workflow fix). No duplicates. Historical IDs in Recent Activity logs below are just records of past refreshes (old schedulers were deleted + recreated with prompt updates). Always use the `scheduler_list` tool for live confirmation.
+
 1. Start each improvement cycle by reading this file + current `openspec/changes/` + `todo` state.
 2. Run audits: full tests, example verification, `n-orca info` / build on key examples.
 3. **Check open PRs first (critical SDLC rule)**: Always run `gh pr list --state open --json number,title,headRefName,files` (using run_terminal_command or gh tool) to list all open PRs and the files they touch. Only pick a task if:
@@ -41,7 +44,7 @@
 
 This goal is intended to be driven by recurring schedulers, background sub-agents, and interactive sessions with Grok. It should run "carefully but indefinitely" until the user decides the project has reached a stable mature state.
 
-Last updated: 2026-06-03 (scheduler cycle: mcp timestep_dim for mot + PR#8; open PRs rule followed (none); 142 tests; cosmos 2.2/3.2/4.x + temporal remain pending).
+Last updated: 2026-06-03 (scheduler status audit: only 1 active 3h loop (019e8d4f094e); cleaned stale ID refs in AGENTS.md + goal logs; no dupes running. Prior cycle: mcp timestep_dim for mot + PR#8 merged after nits).
 ## Recent Activity
 
 **2026-06-02 (initial setup by Grok during n-orca lead handoff)**:
@@ -310,5 +313,5 @@ Next scheduled ~3h. All safety/SDLC/KB/prompt followed (tests+ex 100% green, ope
 - Updated the embedded scheduler cycle instructions (in the recurring task prompt) to include the open-PRs check explicitly in the Planning phase.
 - Updated Last updated and added this Recent Activity entry.
 - Also updated AGENTS.md (see separate edit) to reflect the rule for agents.
-- This ensures future cycles (including 019e8a9e5f8e) will check `gh pr list` before picking from todos/OpenSpec and will prefer unrelated safe work if the next logical slice is already in a PR.
+- This ensures future cycles (including the current 019e8d4f094e) will check `gh pr list` before picking from todos/OpenSpec and will prefer unrelated safe work if the next logical slice is already in a PR.
 - No code changes; pure docs/process fix. Tests/examples untouched.
