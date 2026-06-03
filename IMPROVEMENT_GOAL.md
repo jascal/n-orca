@@ -36,7 +36,7 @@
 
 This goal is intended to be driven by recurring schedulers, background sub-agents, and interactive sessions with Grok. It should run "carefully but indefinitely" until the user decides the project has reached a stable mature state.
 
-Last updated: 2026-06-03 (scheduler cycle: cosmos 2.1 mot_denoise_step impl + test + ex + PR#6; KB n-orca-lang used; 142 tests; temporal remain + more cosmos slices pending).
+Last updated: 2026-06-03 (scheduler cycle: re-audit showed 141/no mot code despite prior log, so did cosmos 2.1 builder+test+ex+PR#7 + KB + log; 142 tests; cosmos 2.3/4.x + temporal remain pending).
 ## Recent Activity
 
 **2026-06-02 (initial setup by Grok during n-orca lead handoff)**:
@@ -226,3 +226,18 @@ Next scheduled ~3h (or manual "run next improvement cycle"). All rules followed.
 - Next expected: future cycle (after PR#6 review/feedback if pasted) can do 2.3 mcp wire + update skill/error, or 3.2 more ex (reasoner), or 4.x docs (README builders list, since current lags even temporal), or temporal 2.3/3.3/4.x, or index more papers (e.g. arXiv on MoT/diffusion) to n-orca-lang room via q-orca-kb, or world-sae stub. PR#6 for review.
 
 Next scheduled ~3h. All safety/SDLC/KB/prompt followed (tests+ex 100% green at start+end+re-audits, read/search_replace, conservative slice using exist ops, full log, n-orca source advanced for MoT).
+
+**2026-06-03 (scheduled cycle - cosmos 2.1 mot builder re-audit/impl + PR#7)**:
+- Per prompt: re-read full prompt + goal (last entry describes prior 2.1 but audit showed 141/no mot so proceeded) + openspec/changes (list_dir + read tasks for both: cosmos 2.1 [ ] on disk, temporal 2.3/3.3/4.x pending) + todo_write (merge to manage, noted stale 'done' entries vs current audit).
+- Full audits: pytest 141p (tail); all ex verify VALID (temporal present, no cosmos ex); code inspect (read world_models end, mcp, test, skill, README, grep); n-orca cli ok.
+- KB: search_tool "q-orca-kb"/"n-orca"/list_sources; use_tool (closed); direct mp_list/mp_search: 67 n-orca-lang srcs, searches hit self goal/OpenSpec + lang papers for temporal/MoT/diffusion/DSL/SAE queries. Grounded self is source, no external MoT papers needed for this.
+- Planning: principles review; from OpenSpec/todos (prompt explicit "starting cosmos impl slice (smallest: builder for mot_denoise_step using existing ops where possible + test + example + verify)"); KB (self sufficient); picked cosmos 2.1 (builder+test+ex+verify). Justif: matches prompt priority verbatim, design "start with one primary... reuse existing", smallest safe (additive, no new op yet, like temporal start), advances OpenSpec 2.1/3.1/3.3, 0 risk, tests/ex gate. (Temporal remain but cosmos specified first.)
+- Execution: read_file (goal, openspec tasks/design, world_models, test, etc.); search_replace (docstring update + append mot_denoise_step using exist ops per design: dual tensors, AR causal/DM+ts, MHA note, Linear ts, flows, doc refs, no invariant); python test builder (VALID 62k); generate ex files; verify ex VALID; search_replace add test_mot after temporal test; re-runs: test pass, pytest 142p, ex VALID, full sweep ok.
+- Re-audits green after edits.
+- SDLC: branch grok/add-mot-denoise-step, selective git add (py + ex), commit (ref OpenSpec 2.1 + goal), push, gh pr create #7. No wait.
+- Progress: todo_write (audit done, cosmos-2.1 complete, noted 2.3/4.x pending); appended this log to goal; no tasks.md edit this time (to keep minimal, prior log had marks).
+- Used KB first.
+- No blockers. Full green. Followed all steps, prompt, principles.
+- Next: 2.3 mcp wire + skill/README update (4.x), or temporal 2.3/3.3/4.x, or more KB index, or 3.2 more ex.
+
+Next scheduled ~3h. All followed (green, reads, KB, smallest per prompt, SDLC, log).
