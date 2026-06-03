@@ -338,6 +338,7 @@ def build_world_model(
         variant: "baseline" (2-hidden-layer MLP) | "deep" (N-hidden-layer MLP)
                  | "attn" (per-agent self-attention + MLP)
                  | "temporal" (attn + explicit state carry for cross-period / regime features)
+                 | "mot" (MoT dual-tower denoise step for diffusion/multimodal like Cosmos 3)
         input_dim / out_dim: per-agent state dimensionality (econ-sae default 43 / 23)
         h1_dim / h2_dim: MLP widths (baseline & attn variants)
         hidden_dims: list of hidden widths (deep variant only)
@@ -365,8 +366,14 @@ def build_world_model(
             gru_hidden=gru_hidden if 'gru_hidden' in locals() else 128,
             h1_dim=h1_dim, h2_dim=h2_dim, **common,
         )
+    elif variant in ("mot", "mot_denoise", "cosmos_mot", "mot_world_model"):
+        arch = _wm.mot_denoise_step(
+            d_model=embed_dim, n_heads=n_heads,
+            h1_dim=h1_dim, h2_dim=h2_dim,
+            **common,
+        )
     else:
-        return {"error": f"unknown variant {variant!r}; expected 'baseline' | 'deep' | 'attn' | 'temporal'"}
+        return {"error": f"unknown variant {variant!r}; expected 'baseline' | 'deep' | 'attn' | 'temporal' | 'mot'"}
 
     return _materialise(arch, out_markdown=out_markdown, out_mermaid=out_mermaid)
 

@@ -1,0 +1,41 @@
+%% architecture MoTDenoiseStep
+flowchart TD
+    ar_x(("ar_x<br/>[input]"))
+    dm_x_noisy(("dm_x_noisy<br/>[input]"))
+    t(("t<br/>[input]"))
+    ar_ln["ar_ln<br/>LayerNorm(d_model)"]
+    ar_mha["ar_mha<br/>MultiHeadAttention(d_model, n_heads, 0.0)"]
+    ar_add["ar_add<br/>Add()"]
+    ar_out(("ar_out<br/>[output]"))
+    ts_embed["ts_embed<br/>Linear(timestep_dim, d_model)"]
+    dm_ln["dm_ln<br/>LayerNorm(d_model)"]
+    dm_mha["dm_mha<br/>MultiHeadAttention(d_model, n_heads, 0.0)"]
+    dm_add["dm_add<br/>Add()"]
+    dm_fc1["dm_fc1<br/>Linear(d_model, h1_dim)"]
+    dm_act1["dm_act1<br/>ReLU()"]
+    dm_fc2["dm_fc2<br/>Linear(h1_dim, h2_dim)"]
+    dm_act2["dm_act2<br/>ReLU()"]
+    dm_head["dm_head<br/>Linear(h2_dim, d_model)"]
+    dm_x_denoised(("dm_x_denoised<br/>[output]"))
+    ts_out(("ts_out<br/>[output]"))
+    ar_x -- "ar : (B,S_ar,d_model)" --> ar_ln
+    ar_ln -- "ar_tok : (B,S_ar,d_model)" --> ar_mha
+    ar_mha -- "ar_a : (B,S_ar,d_model)" --> ar_add
+    ar_ln -- "ar_skip : (B,S_ar,d_model)" --> ar_add
+    ar_add -- "ar_out : (B,S_ar,d_model)" --> ar_out
+    t -- "ts : (B)" --> ts_embed
+    dm_x_noisy -- "dm : (B,S_dm,d_model)" --> dm_ln
+    dm_ln -- "dm_tok : (B,S_dm,d_model)" --> dm_mha
+    dm_mha -- "dm_a : (B,S_dm,d_model)" --> dm_add
+    dm_ln -- "dm_skip : (B,S_dm,d_model)" --> dm_add
+    dm_add -- "d_r : (B,S_dm,d_model)" --> dm_fc1
+    dm_fc1 -- "d_z1 : (B,S_dm,h1_dim)" --> dm_act1
+    dm_act1 -- "d_h1 : (B,S_dm,h1_dim)" --> dm_fc2
+    dm_fc2 -- "d_z2 : (B,S_dm,h2_dim)" --> dm_act2
+    dm_act2 -- "d_h2 : (B,S_dm,h2_dim)" --> dm_head
+    dm_head -- "denoised : (B,S_dm,d_model)" --> dm_x_denoised
+    ts_embed -- "ts_out : (d_model)" --> ts_out
+    classDef input fill:#dbeafe,stroke:#1e40af,color:#1e3a8a;
+    class ar_x,dm_x_noisy,t input;
+    classDef output fill:#dcfce7,stroke:#166534,color:#14532d;
+    class ar_out,dm_x_denoised,ts_out output;

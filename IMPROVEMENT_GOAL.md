@@ -36,7 +36,7 @@
 
 This goal is intended to be driven by recurring schedulers, background sub-agents, and interactive sessions with Grok. It should run "carefully but indefinitely" until the user decides the project has reached a stable mature state.
 
-Last updated: 2026-06-03 (added OpenSpec for Cosmos 3 / MoT after subagent investigation; temporal PR #3 pending review).
+Last updated: 2026-06-03 (scheduler refreshed with latest prompt incl. q-orca-kb n-orca-lang resource + current OpenSpec state; back to autonomous recurring 3h cycles).
 ## Recent Activity
 
 **2026-06-02 (initial setup by Grok during n-orca lead handoff)**:
@@ -192,3 +192,18 @@ All per safety (tests/examples re-verified after edits), SDLC (branch/push/merge
 - This makes n-orca first-class in the shared Orca-family knowledge base for papers, docs, and cross-project grounding.
 
 Next scheduled ~3h (or manual "run next improvement cycle"). All rules followed.
+
+**2026-06-03 (scheduler refresh for continued waiting mode)**:
+- User indicated "back to waiting for the scheduler to do more" after q-orca-kb n-orca-lang work and side tasks.
+- Deleted previous scheduler (019e8a68c057) which had outdated embedded prompt.
+- Created fresh recurring scheduler (ID 019e8a9e5f8e, every 3h, recurring true, fireImmediately false) with fully updated self-driving prompt. The prompt now:
+  - References latest IMPROVEMENT_GOAL (including q-orca-kb n-orca-lang as resource to use via search_tool + use_tool for q-orca-kb__* when researching n-orca topics like temporal, MoT, world models, language design, SAEs).
+  - Incorporates current OpenSpec pending tasks (temporal 2.3/3.3/4.x/5.x; full cosmos 2-5 impl starting with smallest mot builder slice).
+  - Updated todos (improve-11+, temporal-*, q-orca-kb-n-orca).
+  - Full cycle: read goal/openspec/todos, audits (pytest + n-orca verify using .venv), pick smallest safe (prefer cosmos 2.1 or temporal polish), execute safely only in n-orca, re-verify, SDLC/PR for sig changes, log to this file + todo_write.
+  - Explicitly calls out leveraging q-orca-kb n-orca-lang room (search_papers room="n-orca-lang" for relevant papers before/during design).
+- Current health: 141 tests, examples valid, 2 active OpenSpecs with research done, room for safe progress on impl/docs.
+- Scheduler will now fire periodically for careful indefinite improvement. Next fire in ~3h. Can be manually triggered or monitored via scheduler_list / get etc.
+- All per principles. Ready for autonomous cycles.
+
+Next scheduled ~3h. 
