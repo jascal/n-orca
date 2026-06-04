@@ -83,6 +83,10 @@ def compile_pytorch(arch: Architecture) -> str:
     var: dict[str, str] = {n: _pyid(n) for n in inputs}
     has_body = False
 
+    # Ops that return (attn_output, attn_weights) tuple and need special LHS unpack
+    # for correct emission (bypass the generic module path).
+    ATTN_TUPLE_OPS = {"MultiHeadAttention", "DualStreamJointAttention"}
+
     for n in topo:
         ly = arch.layer(n)
         if ly is None or ly.is_input:
@@ -112,7 +116,7 @@ def compile_pytorch(arch: Architecture) -> str:
 
         out_var = _pyid(n) + "_out"
 
-        if ly.op.name == "MultiHeadAttention":
+        if ly.op.name in ATTN_TUPLE_OPS:
             x = input_vars[0]
             lines.append(
                 f"        {out_var}, _ = self.{_pyid(n)}({x}, {x}, {x})"

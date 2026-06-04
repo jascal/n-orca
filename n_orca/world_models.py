@@ -333,14 +333,12 @@ def mot_denoise_step(
     Per-step DAG (external loop over diffusion schedule, like temporal hidden carry).
     AR causal self-attn only; DM attends concat(AR,DM) for conditioning.
     Timestep injected to DM path via dedicated TimestepEmbed (learned Linear for toy; sinusoid in full DiT).
-    Uses Linear, LayerNorm, MultiHeadAttention, Add, ReLU + the new TimestepEmbed op; joint attn
-    approximated here via structure + docstring (full DualStreamJointAttention op in follow-up slice).
+    Uses Linear, LayerNorm, MultiHeadAttention (AR causal), DualStreamJointAttention (DM joint path over AR+DM; placeholder impl modeled on MHA with nn.MultiheadAttention for now), Add, ReLU + the TimestepEmbed op. Full concat/mask special-case (causal_AR vs bidirectional_DM) planned for compiler follow-up per design OpenQs.
     Toy dims for verification; real via HF/diffusers in consumers.
 
     Tensors use (B, S_ar + S_dm, d_model) conceptually; here split for clarity.
     """
-    # AR/DM towers use separate MHA for now; TimestepEmbed op added (this slice); true DualStreamJointAttention op (with concat/mask special-case)
-    # planned for remaining 2.2 per design.
+    # AR uses MHA (causal); DM uses DualStreamJointAttention (for joint over AR+DM + mask); TimestepEmbed for ts. Full special-case impl in compiler for 2.2 per design.
     arch = Architecture(
         name=name,
         description=(
@@ -382,8 +380,9 @@ def mot_denoise_step(
     arch.layers.append(Layer(name="ts_embed", op=OpCall("TimestepEmbed", ["timestep_dim", "d_model"]),
                               description="Timestep projection (sinusoidal in DiT; dedicated TimestepEmbed op (learned Linear for toy; see 2.2 OpenSpec)"))
     arch.layers.append(Layer(name="dm_ln", op=OpCall("LayerNorm", ["d_model"])))
-    arch.layers.append(Layer(name="dm_mha", op=OpCall("MultiHeadAttention", ["d_model", "n_heads", "0.0"]),
-                              description="DM joint attn (bidir over AR+DM in full MoT; self here + cross note)"))
+    arch.layers.append(Layer(name="dm_mha", op=OpCall("DualStreamJointAttention", ["d_model", "n_heads", "0.0"]),
+                              description="DM joint attn (bidir over AR+DM in full MoT; uses DualStreamJointAttention op with concat/mask special-case planned)"))
+    # layer name kept as dm_mha for now (to avoid flow/ex churn in this skeleton slice); the op= is the source of truth
     arch.layers.append(Layer(name="dm_add", op=OpCall("Add", [])))
     arch.layers.append(Layer(name="dm_fc1", op=OpCall("Linear", ["d_model", "h1_dim"])))
     arch.layers.append(Layer(name="dm_act1", op=OpCall("ReLU", [])))

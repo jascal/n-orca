@@ -242,6 +242,20 @@ def _mha_params(args, shapes):
     return 4 * d * d + 4 * d
 
 
+def _dual_joint_infer(args, shapes):
+    _require_arity("DualStreamJointAttention", 1, len(shapes))
+    return shapes[0]
+
+
+def _dual_joint_params(args, shapes):
+    if not args:
+        return 0
+    d = _try_int(args[0])
+    if d is None:
+        return 0
+    return 4 * d * d + 4 * d
+
+
 def _feedforward_infer(args, shapes):
     _require_arity("FeedForward", 1, len(shapes))
     return shapes[0]
@@ -366,6 +380,22 @@ def _torch_init_mha(args: list[str]) -> str:
     return "nn.MultiheadAttention(*placeholders)"
 
 
+def _torch_call_dual(args: list[str], inputs: list[str]) -> str:
+    x = inputs[0]
+    return f"{x}, _ = self.{{NAME}}({x}, {x}, {x})"
+
+
+def _torch_init_dual(args: list[str]) -> str:
+    # placeholder same as MHA for now; real dual will have custom mask/concat logic in special compiler case
+    if len(args) >= 3:
+        d, h, drop = args[0], args[1], args[2]
+        return f"nn.MultiheadAttention({d}, {h}, dropout={drop}, batch_first=True)"
+    if len(args) == 2:
+        d, h = args[0], args[1]
+        return f"nn.MultiheadAttention({d}, {h}, batch_first=True)"
+    return "nn.MultiheadAttention(*placeholders)"
+
+
 def _torch_init_feedforward(args: list[str]) -> str:
     if len(args) >= 3:
         d, df, drop = args[0], args[1], args[2]
@@ -478,6 +508,12 @@ _register(OpSpec(
     infer=_mha_infer, params=_mha_params,
     pytorch_init=_torch_init_mha,
     pytorch_call=_torch_call_mha,
+))
+_register(OpSpec(
+    "DualStreamJointAttention", 1,
+    infer=_dual_joint_infer, params=_dual_joint_params,
+    pytorch_init=_torch_init_dual,
+    pytorch_call=_torch_call_dual,
 ))
 _register(OpSpec(
     "FeedForward", 1,
