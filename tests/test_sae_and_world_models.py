@@ -209,9 +209,10 @@ def test_mot_denoise_step_has_dual_streams_and_timestep():
     dm_noisy = next(t for t in arch.tensors if t.name == "dm_x_noisy")
     dm_denoised = next(t for t in arch.tensors if t.name == "dm_x_denoised")
     assert dm_denoised.shape == dm_noisy.shape
-    # Should have MultiHeadAttention
+    # Should have MultiHeadAttention (AR causal) + DualStreamJointAttention (DM joint)
     ops = {ly.op.name for ly in arch.layers if ly.op}
     assert "MultiHeadAttention" in ops
+    assert "DualStreamJointAttention" in ops
     # timestep linear
     assert any("ts_embed" in ly.name for ly in arch.layers)
 
