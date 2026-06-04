@@ -11,7 +11,7 @@ def test_registered_ops_present():
     must_have = {
         "Linear", "LayerNorm", "Conv2d", "MultiHeadAttention",
         "Add", "Concat", "Flatten", "ReLU", "GELU", "Embedding", "Mean",
-        "TimestepEmbed",
+        "TimestepEmbed", "DualStreamJointAttention",
     }
     assert must_have.issubset(names)
 
@@ -42,6 +42,7 @@ def test_timestep_embed_reuses_linear_infer_and_params():
     assert spec is not linear_spec
 
 
+<<<<<<< HEAD
 def test_timestep_embed_requires_two_args():
     """Error path for arg count (exercises the dedicated _timestep_embed_* checks)."""
     spec = get_op("TimestepEmbed")
@@ -56,6 +57,18 @@ def test_timestep_embed_requires_exactly_one_input():
     with pytest.raises(ShapeRuleError) as exc:
         spec.infer(["10", "20"], [("B", "S", "10"), ("B", "S", "20")])
     assert "op 'TimestepEmbed' expects 1 input(s), got 2" in str(exc.value)
+
+
+def test_dual_joint_preserves_shape_and_params():
+    """Basic coverage for DualStreamJointAttention (placeholder modeled on MHA)."""
+    spec = get_op("DualStreamJointAttention")
+    out = spec.infer(["64", "8", "0.1"], [("B", "S", "64")])
+    assert out == ("B", "S", "64")
+    # MHA-like param count: 4*d*d + 4*d (Q/K/V/O projections + biases)
+    assert spec.params(["64", "8", "0.0"], []) == 4 * 64 * 64 + 4 * 64
+    # Distinct from MHA spec
+    mha_spec = get_op("MultiHeadAttention")
+    assert spec is not mha_spec
 
 
 def test_conv2d_same_padding_preserves_symbolic_dims():
