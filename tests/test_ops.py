@@ -42,6 +42,22 @@ def test_timestep_embed_reuses_linear_infer_and_params():
     assert spec is not linear_spec
 
 
+def test_timestep_embed_requires_two_args():
+    """Error path for arg count (exercises the dedicated _timestep_embed_* checks)."""
+    spec = get_op("TimestepEmbed")
+    with pytest.raises(ShapeRuleError) as exc:
+        spec.infer(["10"], [("B", "S", "10")])
+    assert "TimestepEmbed requires (in, out) args" in str(exc.value)
+
+
+def test_timestep_embed_requires_exactly_one_input():
+    """Error path for input arity (exercises _require_arity with correct op name)."""
+    spec = get_op("TimestepEmbed")
+    with pytest.raises(ShapeRuleError) as exc:
+        spec.infer(["10", "20"], [("B", "S", "10"), ("B", "S", "20")])
+    assert "op 'TimestepEmbed' expects 1 input(s), got 2" in str(exc.value)
+
+
 def test_conv2d_same_padding_preserves_symbolic_dims():
     spec = get_op("Conv2d")
     out = spec.infer(["3", "16", "3", "1", "1"], [("B", "3", "H", "W")])

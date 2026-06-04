@@ -44,7 +44,7 @@
 
 This goal is intended to be driven by recurring schedulers, background sub-agents, and interactive sessions with Grok. It should run "carefully but indefinitely" until the user decides the project has reached a stable mature state.
 
-Last updated: 2026-06-03 (this cycle: full audit 144p + all ex VALID + KB + openPRs none + cosmos 2.2 DualStreamJointAttention op + builder + ex regen + PR#10; updated tasks + appended log; 2 schedulers per docs; no open PRs).
+Last updated: 2026-06-03 (this cycle: full audit 146p+all ex VALID; open PRs #10 checked no overlap; KB n-orca-lang grounding + indexed 2 more MoT/diffusion papers (2511.12207, 2506.07999) advancing q-orca-kb-n-orca pending; picked safe KB task; appended log; followed verbatim).
 ## Recent Activity
 
 **2026-06-02 (initial setup by Grok during n-orca lead handoff)**:
@@ -341,3 +341,70 @@ Next scheduled ~3h. All safety/SDLC/KB/prompt followed (tests+ex 100% green, ope
 - Next expected: 3.2 reasoner ex, 4.x docs/skill for mot, full Dual impl (special compiler case for masks/concat), temporal 2.3/3.3, more KB index (e.g. arXiv MoT/diffusion), or world-sae. PR#10 for review.
 
 Next scheduled ~3h. All safety/SDLC/KB/prompt followed (tests+ex 100% green at start+end+re-audits, open PRs none, read first, KB, full log, n-orca source advanced for MoT Dual op).
+
+**2026-06-03 (address remaining PR #9 review feedback nits - explicit error path tests for TimestepEmbed)**:
+- Triggered by direct user request: "Please address the feedback issues in PR 9 and fix them" (verbatim 3 nits from the Grok scheduled review agent comment on merged PR#9 TimestepEmbed).
+- Context: Core nits already fixed post-merge in commit d68ab38 ("fix: address review feedback on PR #9"): 
+  1. (bug) Dedicated `_timestep_embed_infer`/`_timestep_embed_params` (instead of Linear reuse) so ShapeRuleError now correctly says "TimestepEmbed requires..." (and arity "op 'TimestepEmbed' expects...").
+  2. (suggestion) mot_denoise_step docstring + comments refreshed to say "via dedicated TimestepEmbed" + "Uses ... + the new TimestepEmbed op".
+  3. (suggestion) "TimestepEmbed" added to must_have; `test_timestep_embed_reuses_linear_infer_and_params` added (happy path + distinctness).
+- This cycle completes the remaining suggestion from Issue 1+3: "Add a `test_timestep_embed_*` exercising the error paths in test_ops.py alongside the Linear ones." (prior test only exercised success path, so branches in the new helpers + _require_arity were not hit in CI for the Timestep op).
+- Open PRs check (CRITICAL per goal step 3 + AGENTS + "Open PRs rule"): Executed `gh pr list --state open --json number,title,headRefName,files` → 1 open: #10 "feat: add DualStreamJointAttention op...". Files touched by #10: n_orca/ops/spec.py, n_orca/world_models.py, examples/cosmos-mot-denoise-step.{n.orca.md,mmd}, openspec/.../tasks.md. "Open PRs checked via gh; no overlap with [10]". (Planned edit only to tests/test_ops.py — not present in #10's files list. Safe per hard constraint; did not touch any open-PR files or re-do 2.2 work.)
+- Full start-of-cycle audit (per "Start now with full audit + read goal + openspec + todos"):
+  - Tests: .venv/bin/python -m pytest -q --tb=no → 144 passed (harmless torch warning only).
+  - Examples: all 23 `find examples -name '*.n.orca.md'` → all "Result: VALID" (incl. cosmos-mot-denoise-step.n.orca.md which exercises TimestepEmbed in rendered layers/Mermaid; econ-temporal etc.).
+  - Code: read_file on test_ops.py (saw the reuse test), ops/spec.py (confirmed dedicated Timestep helpers with correct strings), world_models (docstring good); grep; n-orca info/verify calls.
+  - OpenSpec: read openspec/changes/add-cosmos-mot-world-models/tasks.md (2.2 notes "TimestepEmbed completed (PR #9 + review feedback addressed in d68ab38...)").
+  - Goal/AGENTS: read chunks (Recent up to PR#10 Dual cycle; "How to Work" + "Avoiding Duplicate..." + SDLC sections; scheduler rules).
+  - Todos: todo_write (merge:true) to load current (incl. cosmos-*, temporal-*, q-orca-kb-n-orca pending).
+  - KB (per prompt "Use q-orca-kb n-orca-lang room as resource... before ..."): search_tool for q-orca-kb tools; direct fallback (transport closed) via .venv/bin/python + mp_list_sources/mp_search (DEFAULT_PALACE): 67 sources in q-orca-implementations/n-orca-lang room; searches for "timestep embed OR ... MoT dual" hit self n-orca sources (README.md, world_models.py) + lang arXiv. Grounded the Timestep/MoT context from n-orca as canonical + papers before the test edit.
+- Planning: Reviewed principles (green always, small safe steps, test+ex strict gate, KB first, OpenSpec refs, conservative). User explicit request takes precedence but still subject to open-PRs rule. Picked: enhance test coverage for TimestepEmbed error paths (pure test addition, no behavior change, directly verbatim from review "exercising the error paths", "would have caught any registration..."). Justif: smallest/safest/highest-value for "address PR9 feedback" (no overlap with open #10; advances improve-07 quality/robustness + error messages; no docs/sibling edits needed; re-audit trivial). "Open PRs checked via gh; no overlap with [10]". (Could have done pure KB index or untouched docs, but user query specified this.)
+- Execution (read-first, search_replace only, n-orca only):
+  - read_file on test_ops.py (target section), gh pr view 9 --comments (pasted the exact 3 Issues for verbatim address).
+  - search_replace: inserted two new tests after existing `test_timestep_embed_reuses...`:
+    - test_timestep_embed_requires_two_args: triggers arg<2 path, asserts "TimestepEmbed requires (in, out) args"
+    - test_timestep_embed_requires_exactly_one_input: triggers _require_arity, asserts "op 'TimestepEmbed' expects 1 input(s), got 2"
+  - (No other files edited.)
+- Re-audits (post-edit, per "before considering done"):
+  - pytest tests/test_ops.py → 25 passed (was 23; new 2).
+  - Full: 146 passed.
+  - All 23 examples re-verified → all VALID (no ex touched).
+  - Manual: confirmed the raises produce exactly the strings with TimestepEmbed name (not Linear).
+- No SDLC (small internal/low-risk test-only on main; discretion per goal "small, internal..."; no user-facing; tests were already gated).
+- Progress: todo_write (multiple updates for steps); this entry appended to Recent. Fully addresses the 3 feedback issues from PR #9 review (the error exercise was the last gap after d68ab38).
+- 100% green at start and end of cycle. Followed verbatim: read goal+openspec+todos first, gh openPRs check + stated no-overlap, KB use, small step, read before edit, search_replace, re-audit, full log.
+- Health: 146 tests, all ex VALID, no open work on PR#10 files.
+
+Next scheduled ~3h (review agent will see #10's prior Grok comment + decide on addressing mode if new feedback; dev must continue respecting open #10 + pick non-overlap e.g. more KB indexing to n-orca-lang, temporal 2.3 safe files, etc.). All rules followed.
+
+**2026-06-03 (scheduled cycle - more q-orca-kb n-orca-lang indexing + full audit + KB + openPRs rule)**:
+- Started per scheduler prompt exactly: "Start now with full audit + read goal + openspec + todos." + list_dir openspec/changes + read proposal/design/tasks for active (add-temporal: 2.3/3.3/4.x/5.x remain; add-cosmos: 2.2 Dual pending in note, others marked; 3.2/4.x/5 pending) + use search_tool for q-orca-kb then direct mp_ + "pick the NEXT SMALLEST, SAFEST... ONLY IF none of the task's affected files appear in any open PR's files list" + "In your justification, state "Open PRs checked via gh; no overlap with [list...]" " + "Use q-orca-kb n-orca-lang room as resource" + "Always: ... re-audit green, 100% green small steps, n-orca only, log detailed".
+- todo_write (merge:true) to load/advance (saw q-orca-kb-n-orca pending, temporal remain, cosmos 3.2+ but constrained by open PR, improve-*, current-cycle-audit in_progress).
+- Full audits (start of cycle):
+  - Tests: .venv/bin/python -m pytest -q --tb=no → 146 passed (1 harmless torch warning; confirms +2 from prior PR9 address test enhancement).
+  - Examples verify: all 23 via find + n-orca verify loop → all "Result: VALID" (cosmos-mot-denoise-step still at 62528/Depth9 state pre-Dual since PR#10 open; temporal/econ/sae/hf all good).
+  - n-orca cli: info (needs file), builds on ex ok.
+  - Code inspect: list_dir n-orca/openspec/changes (2 active + archive); read_file IMPROVEMENT_GOAL (Recent ends at PR9 address log, Last updated mentions 146p #10), openspec tasks (temporal 2.3 pending, cosmos 2.2 notes Timestep done Dual pending), AGENTS.md (open PRs rule + KB n-orca-lang documented), .claude/skills/n-orca-build-world-model/SKILL.md (lists temporal + mot with timestep example), README (badge 143 lag, OpenSpec callouts for both, mot in builders); grep for Dual/Timestep etc.
+  - OpenSpec: confirmed temporal remain safe-ish but code would overlap; cosmos 2.2 in open PR.
+- Open PRs (CRITICAL first, before any pick): Executed `gh pr list --state open --json number,title,headRefName,files` → 1 open #10 "feat: add DualStreamJointAttention op (cosmos-mot 2.2 per OpenSpec)", files: examples/cosmos-mot-denoise-step.{n.orca.md,mmd}, n_orca/ops/spec.py , n_orca/world_models.py , openspec/changes/add-cosmos-mot-world-models/tasks.md . "Open PRs checked via gh; no overlap with [10]".
+- KB (per prompt, before planning, "use q-orca-kb n-orca-lang room as resource... before ..."):
+  - search_tool "q-orca-kb n-orca-lang list_sources search_papers index_paper temporal world model MoT diffusion transformer" (discovered search_papers, batch_index, index_paper, list_sources, list_seeds, kb_status etc + schemas).
+  - use_tool q-orca-kb__list_sources (room= n-orca-lang wing=...) and q-orca-kb__kb_status → "Transport closed" (known, use direct fallback).
+  - Direct mp_ : list 67 sources in q-orca-implementations/n-orca-lang; searches hit self n-orca (README, world_models) + lang arXiv.
+  - Then for task: used web_search for MoT/diffusion papers (found 2511.12207 MoS/MoT multimodal diffusion, 2506.07999 MADFormer AR+diffusion, 2603.14851 AutoMoT etc relevant to cosmos-mot design).
+  - Indexed via direct pipeline (asyncio index_one with DEFAULTs): 2511.12207 (169 chunks, done), 2506.07999 (71 chunks, done). Verified post: total n-orca-lang 69, new sources in room with arxiv type, recent timestamps, correct wing/room.
+  - Grounding: added real papers on MoT dual-tower / AR-diffusion / multimodal for future grounding of n-orca MoT impl (self docs + these); aligns econ-sae + subagent.
+- Planning: principles (green, OpenSpec, KB first, small safe, no PR overlap hard rule, conservative prefer KB/docs). From todos/OpenSpec + KB (self+new papers grounded), gh openPRs: picked q-orca-kb-n-orca "Leverage / index more to n-orca-lang room in q-orca-kb (papers on temporal/MoT/diffusion...)" . Justif: smallest/safest/highest-value aligned (advances explicit pending todo + prompt "use ... as resource", "index more", grounding for cosmos/temporal without any n-orca file edits; 0 overlap with #10 files list; no risk to green; pure enhancement like prior KB seeding; over risky temporal 2.3 (would edit world_models.py in #10) or cosmos 3.2 (ex + tasks in #10) or Dual (in PR). "Open PRs checked via gh; no overlap with [10]". (Could index 0 but task requires leverage).
+- Execution (read-first, only n-orca + cross KB research, no search_replace on n-orca source):
+  - read_file (goal chunks + tail, openspec tasks x2, AGENTS, skill, README sections, pipeline for index sig).
+  - search_tool (done), use (failed), direct mp_ + web_search for papers + 2x index_one calls (successful done results).
+  - Re-verify index: mp_list + samples showed +2 sources, 69 total.
+- Re-audits after + final: pytest 146p (unchanged), all 23 ex re-verified VALID (no ex touched). n-orca only (KB cross read/index is allowed research per history/prompt).
+- No SDLC (no change to n-orca/ code/examples/docs/OpenSpec; KB index is q-orca-kb enhancement for grounding, not sig user-facing n-orca change; small).
+- Progress: todo_write (q-orca-kb-n-orca advanced with 2 papers, exec complete, log pending). Appended this entry. No new blockers (open #10 respected, green held).
+- Used KB n-orca-lang + search first (required).
+- 100% green start/end. Followed all (full reads/audits first, gh openPRs + stated no-overlap, KB use+index, small step, re-audit, n-orca only + allowed cross, full log).
+- Health: 146 tests, 23/23 ex VALID, n-orca-lang now 69 srcs (2 new MoT/diffusion papers), open PR #10 untouched.
+
+Next scheduled ~3h (review agent on #10; dev must pick non-overlap e.g. more KB index, temporal OpenSpec pure docs on its/ files, README badge update on safe, etc. per rule). All rules followed.
+
