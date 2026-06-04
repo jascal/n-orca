@@ -215,11 +215,16 @@ PROJECT_INTROS = {
 }
 
 
+# Sibling repos live alongside n-orca in the shared workspace dir; override any
+# of them with the corresponding flag.
+_CODE_ROOT = Path(__file__).resolve().parents[2]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--polygram", type=Path, default=Path("/Users/allans/code/polygram"))
-    parser.add_argument("--sm-sae",   type=Path, default=Path("/Users/allans/code/sm-sae"))
-    parser.add_argument("--econ-sae", type=Path, default=Path("/Users/allans/code/econ-sae"))
+    parser.add_argument("--polygram", type=Path, default=_CODE_ROOT / "polygram")
+    parser.add_argument("--sm-sae",   type=Path, default=_CODE_ROOT / "sm-sae")
+    parser.add_argument("--econ-sae", type=Path, default=_CODE_ROOT / "econ-sae")
     args = parser.parse_args()
 
     print(f"Generating polygram docs at {args.polygram}/docs/architectures/")
