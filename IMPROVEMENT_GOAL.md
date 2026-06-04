@@ -44,7 +44,7 @@
 
 This goal is intended to be driven by recurring schedulers, background sub-agents, and interactive sessions with Grok. It should run "carefully but indefinitely" until the user decides the project has reached a stable mature state.
 
-Last updated: 2026-06-03 (this cycle: full audit 146p+all ex VALID; open PRs #10 checked no overlap; KB n-orca-lang grounding + indexed 2 more MoT/diffusion papers (2511.12207, 2506.07999) advancing q-orca-kb-n-orca pending; picked safe KB task; appended log; followed verbatim).
+Last updated: 2026-06-04 (addressed all 6 issues in open PR#10 via worktree addressing mode: compiler special-case for Dual, docstring, tests for Dual, layer comment; local 147p + ex VALID; CI success; merged PR#10; appended log).
 ## Recent Activity
 
 **2026-06-02 (initial setup by Grok during n-orca lead handoff)**:
@@ -407,4 +407,31 @@ Next scheduled ~3h (review agent will see #10's prior Grok comment + decide on a
 - Health: 146 tests, 23/23 ex VALID, n-orca-lang now 69 srcs (2 new MoT/diffusion papers), open PR #10 untouched.
 
 Next scheduled ~3h (review agent on #10; dev must pick non-overlap e.g. more KB index, temporal OpenSpec pure docs on its/ files, README badge update on safe, etc. per rule). All rules followed.
+
+**2026-06-04 (address all 6 issues in open PR #10 via Feedback Addressing Mode + merge)**:
+- Trigger: direct user request "Address the issues found in https://github.com/jascal/n-orca/pull/10" (the 6 Grok review issues on the open DualStreamJointAttention PR#10, posted by scheduled review agent).
+- Per addressing mode (enhanced anti-spam path): 
+  1. Posted initial response comment on PR#10 (Grok header) listing the 6 issues and stating plan to fix in worktree, CI, merge.
+  2. Setup: git fetch; WORKTREE=/tmp/grok-address-pr-10 ; git worktree add ... origin/grok/add-cosmos-mot-dual-joint-attn --detach ; cd $WORKTREE.
+  3. Re-fetched full comments/reviews; read PR branch code (spec.py Dual registration + pytorch_call_dual, world_models docstring + dm_mha layer + flows, test_ops must_have without Dual + no dedicated test, test_sae mot test only checks MHA, compiler only MHA special).
+  4-8. Fixes + verify + commit/push + CI wait + merge + cleanup:
+     - Issue 1+3 (bug/suggestion, compiler): search_replace in /tmp/.../n_orca/compiler/pytorch.py : added ATTN_TUPLE_OPS = {"MultiHeadAttention", "DualStreamJointAttention"} ; changed if to `in ATTN_TUPLE_OPS` + comment. (ensures Dual uses correct unpack LHS like MHA, so compile_pytorch produces runnable for mot builder/placeholder).
+     - Issue 2 (bug, docstring): search_replace in world_models.py mot_denoise_step docstring: revised to "Uses Linear, LayerNorm, MultiHeadAttention (AR causal), DualStreamJointAttention (DM joint path over AR+DM; placeholder impl modeled on MHA with nn.MultiheadAttention for now), Add, ReLU + the TimestepEmbed op. Full concat/mask special-case ... planned for compiler follow-up per design OpenQs."
+     - Issue 4 (suggestion, tests): search_replace test_ops.py : added "DualStreamJointAttention" to must_have; inserted test_dual_joint_preserves_shape_and_params() after timestep test (infer preserves, params MHA-like count, distinct from MHA).
+     - Issue 5 (nit, tests): search_replace test_sae_and_world_models.py mot test: added `assert "DualStreamJointAttention" in ops` + updated comment to note both MHA (AR) + Dual (DM).
+     - Issue 6 (nit): inserted clarifying comment after dm_mha layer in world_models.py (kept name to avoid churn/regen; "layer name kept as dm_mha for now ... op= is the source of truth").
+     - No ex rename/regen needed (chose comment path); no other files.
+  - Local green (in worktree, cd + PYTHONPATH=. + main venv): pytest 145p (branch snapshot); cosmos-mot ex + temporal VALID; full pytest from worktree 145p.
+  - Commit (selective 4 files), msg refs issues + agent ID; push to PR branch.
+  - CI: gh run list showed success (id 26902826695, already completed post-push); no watch needed.
+  - gh pr merge 10 --merge ; posted success comment on PR (all 6 fixed, CI green, merged).
+  - Cleanup: worktree remove --force + prune; (return to main + pull later after resolving local).
+- Post-merge on main: local had pending (goal KB log, test Timestep nits); committed them, then merged origin/main (conflict in test_ops.py from Timestep error tests vs Dual test addition; resolved by keeping both sets of tests via search_replace removing markers; git add + commit merge).
+- Final re-audit on main: pytest **147 passed**; cosmos ex VALID.
+- Progress: todos updated (all address-pr10-* completed); appended this entry to Recent. PR#10 now merged with fixes. No new blockers.
+- 100% green. Followed addressing mode verbatim + n-orca safety (green gates in worktree + main, read before edit, selective, etc.).
+- Health: 147 tests, all ex VALID, PR#10 closed/merged, Dual op now has correct compiler support + test coverage + accurate docs.
+
+Next: resume normal dev scheduler (respect any remaining open if any; advance temporal 2.3/4.x safe, cosmos 3.2 if no open, more KB, etc). All rules followed.
+
 
