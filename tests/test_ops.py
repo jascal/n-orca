@@ -42,7 +42,6 @@ def test_timestep_embed_reuses_linear_infer_and_params():
     assert spec is not linear_spec
 
 
-<<<<<<< HEAD
 def test_timestep_embed_requires_two_args():
     """Error path for arg count (exercises the dedicated _timestep_embed_* checks)."""
     spec = get_op("TimestepEmbed")
