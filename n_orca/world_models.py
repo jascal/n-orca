@@ -360,14 +360,14 @@ def mot_denoise_step(
             Tensor("ar_x", ("B", "S_ar", "d_model"), "float32"),
             Tensor("ar_out", ("B", "S_ar", "d_model"), "float32"),
             Tensor("dm_x_noisy", ("B", "S_dm", "d_model"), "float32"),
-            Tensor("t", ("B",), "float32"),
+            Tensor("t", ("B", "timestep_dim"), "float32"),
             Tensor("dm_x_denoised", ("B", "S_dm", "d_model"), "float32"),
-            Tensor("ts_out", ("d_model",), "float32"),
+            Tensor("ts_out", ("B", "d_model"), "float32"),
         ],
     )
     arch.layers.append(Layer(name="ar_x", is_input=True, description="AR tokens (reasoner prefix)"))
     arch.layers.append(Layer(name="dm_x_noisy", is_input=True, description="DM noisy latents (generator)"))
-    arch.layers.append(Layer(name="t", is_input=True, description="Diffusion timestep (scalar per batch)"))
+    arch.layers.append(Layer(name="t", is_input=True, description="Diffusion timestep embedding, (B, timestep_dim) (sinusoidal in full DiT; feature vector per batch for the toy learned Linear)"))
 
     # AR reasoner path (causal only)
     arch.layers.append(Layer(name="ar_ln", op=OpCall("LayerNorm", ["d_model"])))

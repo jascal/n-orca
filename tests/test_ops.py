@@ -54,6 +54,22 @@ def test_dual_joint_preserves_shape_and_params():
     assert spec is not mha_spec
 
 
+def test_timestep_embed_rejects_mismatched_input_dim():
+    """Input last dim must equal timestep_dim; a bare scalar `(B,)` is rejected.
+
+    Regression for the cosmos-mot denoise step, whose `t` was declared `(B,)`
+    so the emitted Linear(timestep_dim, d_model) failed at runtime.
+    """
+    spec = get_op("TimestepEmbed")
+    with pytest.raises(ShapeRuleError, match="timestep_dim"):
+        spec.infer(["timestep_dim", "d_model"], [("B",)])
+    with pytest.raises(ShapeRuleError):
+        spec.infer(["128", "64"], [("B", "32")])  # concrete mismatch
+    # Symbolic and concrete matches both pass.
+    assert spec.infer(["timestep_dim", "d_model"], [("B", "timestep_dim")]) == ("B", "d_model")
+    assert spec.infer(["128", "64"], [("B", "128")]) == ("B", "64")
+
+
 def test_conv2d_same_padding_preserves_symbolic_dims():
     spec = get_op("Conv2d")
     out = spec.infer(["3", "16", "3", "1", "1"], [("B", "3", "H", "W")])
