@@ -419,3 +419,54 @@ def mot_denoise_step(
     # Note: no single output_shape invariant (dual paths, main DM out)
     # AR causal integrity + DM joint cond documented in description.
     return arch
+
+
+def mot_reasoner_only(
+    *,
+    d_model: int = 64,
+    n_heads: int = 4,
+    name: str = "MoTReasonerOnly",
+) -> Architecture:
+    """AR-only causal reasoner tower from MoT ("reasons first"; standalone for understanding / VLM-like substrate).
+
+    Extracted from the AR path of mot_denoise_step per OpenSpec/design/subagent.
+    Causal self-attn only; no DM/timestep (those are for the generator slice).
+    Can be composed externally with a generator (like full MoT "reason then generate").
+    See add-cosmos-mot-world-models + subagent report for Cosmos 3 MoT context.
+    """
+    arch = Architecture(
+        name=name,
+        description=(
+            f"MoT AR causal reasoner only (standalone causal tower). "
+            f"d_model={d_model}, n_heads={n_heads}. "
+            "For 'reasons first' in Cosmos MoT before generation. "
+            "See OpenSpec add-cosmos-mot-world-models + subagent report."
+        ),
+        hyperparameters=[
+            Hyperparameter("d_model", "int", d_model),
+            Hyperparameter("n_heads", "int", n_heads),
+        ],
+        tensors=[
+            Tensor("ar_x", ("B", "S_ar", "d_model"), "float32"),
+            Tensor("ar_out", ("B", "S_ar", "d_model"), "float32"),
+        ],
+    )
+    arch.layers.append(Layer(name="ar_x", is_input=True, description="AR tokens (reasoner prefix)"))
+
+    # AR reasoner path (causal only)
+    arch.layers.append(Layer(name="ar_ln", op=OpCall("LayerNorm", ["d_model"])))
+    arch.layers.append(Layer(name="ar_mha", op=OpCall("MultiHeadAttention", ["d_model", "n_heads", "0.0"]),
+                              description="AR causal self-attn (reasoning)"))
+    arch.layers.append(Layer(name="ar_add", op=OpCall("Add", [])))
+    arch.layers.append(Layer(name="ar_out", is_output=True, description="AR output (reasoning result)"))
+
+    # Flows (AR causal self + residual)
+    arch.flow.extend([
+        FlowEdge("ar_x", "ar_ln", "ar"),
+        FlowEdge("ar_ln", "ar_mha", "ar_tok"),
+        FlowEdge("ar_mha", "ar_add", "ar_a"),
+        FlowEdge("ar_ln", "ar_add", "ar_skip"),  # residual
+        FlowEdge("ar_add", "ar_out", "ar_out"),
+    ])
+
+    return arch

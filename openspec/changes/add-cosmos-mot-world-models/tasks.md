@@ -13,7 +13,7 @@
 
 ## 3. Examples & Tests
 - [x] 3.1 Add `examples/cosmos-mot-denoise-step.n.orca.md` + `.mmd` (generated via builder + render + compile_mermaid; or manual from design sketch). Must `n-orca verify` → VALID and compile to PyTorch runnable stub. (Generated + VALID in 2.1 cycle.)
-- [ ] 3.2 Add at least one more (e.g. `cosmos-mot-reasoner.n.orca.md`) demonstrating AR-only causal tower.
+- [x] 3.2 Add at least one more (e.g. `cosmos-mot-reasoner.n.orca.md`) demonstrating AR-only causal tower. (Added mot_reasoner_only builder + test + ex in this cycle; AR causal reasoner only from mot design.)
 - [x] 3.3 Add tests in `tests/test_sae_and_world_models.py` (e.g. `test_mot_world_model_has_dual_streams_and_timestep()`, checks tensors/layers/flows include joint/timestep, MHA or custom, compiles; similar to temporal test). Total tests increase; full suite green. (Added + 142p in cycle.)
 - [x] 3.4 Full `n-orca verify --all-examples` (or equivalent sweep) + `python -m pytest -q` (must stay 100% pass + all VALID, including prior econ/temporal/sae examples). (Full sweep green post change.)
 
