@@ -268,12 +268,17 @@ def _write_index(repo: Path, rows: list[Generated]) -> None:
     out.write_text("\n".join(lines), encoding="utf-8")
 
 
+# Sibling repos live alongside n-orca in the shared workspace dir; override
+# either with the corresponding flag.
+_CODE_ROOT = Path(__file__).resolve().parents[2]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sae-forge", type=Path,
-                        default=Path("/Users/allans/code/sae-forge"))
+                        default=_CODE_ROOT / "sae-forge")
     parser.add_argument("--bio-sae", type=Path,
-                        default=Path("/Users/allans/code/bio-sae"))
+                        default=_CODE_ROOT / "bio-sae")
     args = parser.parse_args()
 
     client = HfClient()
