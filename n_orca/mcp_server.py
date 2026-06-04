@@ -340,6 +340,7 @@ def build_world_model(
                  | "attn" (per-agent self-attention + MLP)
                  | "temporal" (attn + explicit state carry for cross-period / regime features)
                  | "mot" (MoT dual-tower denoise step for diffusion/multimodal like Cosmos 3)
+                 | "mot_reasoner" (MoT AR causal reasoner only / "reasons first" tower)
         input_dim / out_dim: per-agent state dimensionality (econ-sae default 43 / 23)
         h1_dim / h2_dim: MLP widths (baseline & attn variants)
         hidden_dims: list of hidden widths (deep variant only)
@@ -347,6 +348,7 @@ def build_world_model(
         gru_hidden: state size for temporal variant
         timestep_dim: timestep embedding dim for mot variant
             Example: build_world_model("mot", embed_dim=64, n_heads=4, gru_hidden=128, timestep_dim=32)
+            Example: build_world_model("mot_reasoner", embed_dim=64, n_heads=4)
         name: override architecture name
     """
     variant = (variant or "").lower()
@@ -377,8 +379,13 @@ def build_world_model(
             h1_dim=h1_dim, h2_dim=h2_dim,
             **mot_kw,
         )
+    elif variant in ("mot_reasoner", "reasoner", "mot_ar", "cosmos_reasoner"):
+        arch = _wm.mot_reasoner_only(
+            d_model=embed_dim, n_heads=n_heads,
+            name=name,
+        )
     else:
-        return {"error": f"unknown variant {variant!r}; expected 'baseline' | 'deep' | 'attn' | 'temporal' | 'mot'"}
+        return {"error": f"unknown variant {variant!r}; expected 'baseline' | 'deep' | 'attn' | 'temporal' | 'mot' | 'mot_reasoner'"}
 
     return _materialise(arch, out_markdown=out_markdown, out_mermaid=out_mermaid)
 

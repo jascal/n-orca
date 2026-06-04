@@ -221,6 +221,22 @@ def test_mot_denoise_step_has_dual_streams_and_timestep():
     assert t_tensor.shape == ("B", "timestep_dim")
 
 
+def test_mot_reasoner_only_has_ar_path():
+    """Test for cosmos 3.2 / mot_reasoner variant (AR causal only tower)."""
+    arch = world_models.mot_reasoner_only(d_model=32, n_heads=2)
+    rep = verify(arch)
+    assert rep.valid, [e.code for e in rep.errors]
+    tensor_names = {t.name for t in arch.tensors}
+    assert "ar_x" in tensor_names and "ar_out" in tensor_names
+    # No DM/timestep tensors
+    assert "t" not in tensor_names and "dm_x_noisy" not in tensor_names and "dm_x_denoised" not in tensor_names
+    # Only AR ops (MHA, no Dual)
+    ops = {ly.op.name for ly in arch.layers if ly.op}
+    assert "MultiHeadAttention" in ops
+    assert "DualStreamJointAttention" not in ops
+    assert "TimestepEmbed" not in ops
+
+
 # --------------------------------------------------------------------------- #
 #  End-to-end PyTorch round-trip
 # --------------------------------------------------------------------------- #

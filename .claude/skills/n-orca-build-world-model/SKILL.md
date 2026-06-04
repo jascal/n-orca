@@ -13,11 +13,13 @@ Variants:
 - attn (adds per-agent / per-position MultiHeadAttention before the MLP)
 - temporal (attn + explicit hidden state carry across periods for regime/windowed features)
 - mot (MoT dual-tower + joint attn + timestep for diffusion/multimodal like Cosmos 3)
+- mot_reasoner (MoT AR causal reasoner only / "reasons first" tower)
 
 Example: /n-orca-build-world-model attn --h1_dim 96
 Example: /n-orca-build-world-model temporal --gru_hidden 128
 Example: /n-orca-build-world-model mot --d_model 64 --timestep_dim 32
  (timestep_dim now exposed via MCP after PR#8)
+Example: /n-orca-build-world-model mot_reasoner --d_model 64 --n_heads 4
 
 Returns the .n.orca.md definition (optionally writes files).
 
