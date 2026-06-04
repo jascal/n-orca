@@ -101,6 +101,21 @@ def _try_int(token: str) -> int | None:
         return None
 
 
+def _dims_match(a: str, b: str) -> bool:
+    """Whether two (symbolic or concrete) dimension tokens denote the same size.
+
+    Equal tokens match (symbolic 'timestep_dim' == 'timestep_dim'); two concrete
+    integers match iff numerically equal. A symbolic token never matches a
+    differently-named one — we cannot prove equality, so we flag it.
+    """
+    if a == b:
+        return True
+    ia, ib = _try_int(a), _try_int(b)
+    if ia is not None and ib is not None:
+        return ia == ib
+    return False
+
+
 # --------------------------------------------------------------------------- #
 #  Shape-rule implementations
 # --------------------------------------------------------------------------- #
@@ -131,7 +146,16 @@ def _timestep_embed_infer(args, shapes):
     _require_arity("TimestepEmbed", 1, len(shapes))
     if len(args) < 2:
         raise ShapeRuleError("TimestepEmbed requires (in, out) args")
-    return _replace_last(shapes[0], args[1])
+    in_shape = shapes[0]
+    if not in_shape:
+        raise ShapeRuleError("TimestepEmbed input must have at least one dim")
+    if not _dims_match(in_shape[-1], args[0]):
+        raise ShapeRuleError(
+            f"TimestepEmbed input last dim {in_shape[-1]!r} must equal "
+            f"timestep_dim {args[0]!r}; feed the timestep as (..., {args[0]}) "
+            f"(e.g. a sinusoidal/feature embedding), not a bare scalar"
+        )
+    return _replace_last(in_shape, args[1])
 
 
 def _timestep_embed_params(args, shapes):

@@ -215,6 +215,10 @@ def test_mot_denoise_step_has_dual_streams_and_timestep():
     assert "DualStreamJointAttention" in ops
     # timestep linear
     assert any("ts_embed" in ly.name for ly in arch.layers)
+    # timestep input carries a feature axis matching timestep_dim, so the
+    # emitted Linear(timestep_dim, d_model) accepts it (regression: was `(B,)`).
+    t_tensor = next(t for t in arch.tensors if t.name == "t")
+    assert t_tensor.shape == ("B", "timestep_dim")
 
 
 # --------------------------------------------------------------------------- #

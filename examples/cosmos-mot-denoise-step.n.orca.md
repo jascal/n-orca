@@ -19,9 +19,9 @@
 | ar_x          | (B, S_ar, d_model) | float32 |
 | ar_out        | (B, S_ar, d_model) | float32 |
 | dm_x_noisy    | (B, S_dm, d_model) | float32 |
-| t             | (B)                | float32 |
+| t             | (B, timestep_dim)  | float32 |
 | dm_x_denoised | (B, S_dm, d_model) | float32 |
-| ts_out        | (d_model)          | float32 |
+| ts_out        | (B, d_model)       | float32 |
 
 ## layer ar_x [input]
 > AR tokens (reasoner prefix)
@@ -30,7 +30,7 @@
 > DM noisy latents (generator)
 
 ## layer t [input]
-> Diffusion timestep (scalar per batch)
+> Diffusion timestep embedding, (B, timestep_dim) (sinusoidal in full DiT; feature vector per batch for the toy learned Linear)
 
 ## layer ar_ln
 - op: LayerNorm(d_model)
