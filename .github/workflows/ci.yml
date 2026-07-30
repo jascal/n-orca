@@ -35,6 +35,9 @@ jobs:
 
       - name: Verify every shipped example
         run: |
+          # `*-leak.n.orca.md` files are negative fixtures — INVALID by design.
+          # They are asserted on in tests/test_properties.py, not here.
           for f in examples/*.n.orca.md examples/hf-generated/*.n.orca.md; do
+            case "$f" in *-leak.n.orca.md) echo "skip (negative fixture): $f"; continue;; esac
             python -m n_orca.cli.main verify "$f"
           done

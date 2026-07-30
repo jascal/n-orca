@@ -116,6 +116,93 @@ Declarative bounds. Verified at the resource-bound stage.
 Supported predicates: `param_count`, `flops`, `depth`, `output_shape`.
 Suffixes: `K`, `M`, `G` (decimal) on numeric bounds.
 
+### `## groups`
+
+Names a set of layers, so `## properties` can make claims at subgraph
+granularity. A table, like `## tensors`.
+
+```markdown
+## groups
+
+| Name   | Layers                                                  |
+|--------|---------------------------------------------------------|
+| core   | core_sense, core_fc, core_add, core_act, affect_head     |
+| cortex | embed, attn_norm, attn, add_attn, ff, add_ff, cortex_ln  |
+| bus    | nm_bus, nm_receptor, nm_gain                             |
+```
+
+- **Layers** — a comma-separated list of declared layer names. Order is
+  preserved but not significant.
+- A group is *only* a set of layers: not a subgraph, not a module, not a
+  namespace. It has no shape and contributes no parameters of its own.
+- A group name may be used anywhere a layer name is accepted in
+  `## properties`.
+- Groups may overlap, but overlap emits `GROUP_OVERLAP` (warning): it usually
+  means the boundary being asserted is not the one intended.
+- A group name equal to a layer name is `GROUP_NAME_COLLISION` (error) — a
+  property operand must resolve to exactly one thing.
+
+Groups also render as Mermaid `subgraph` blocks, so an asserted boundary is
+visible in the diagram.
+
+### `## properties`
+
+Checkable claims about the topology, decided by verification Stage 6. One
+bullet per property. Mirrors [Orca](https://github.com/jascal/orca-lang)'s
+`properties` block.
+
+```markdown
+## properties
+- reachable: v_hat from obs
+- unreachable: core from cortex
+- passes_through: bus for core -> cortex
+- within: y from obs <= 12
+- param_fraction: core <= 1%
+- out_dim: nm_bus <= n_affect
+```
+
+| Property | Syntax | Meaning | Method |
+|----------|--------|---------|--------|
+| Reachability | `reachable: B from A` | ∃ path A→B | BFS from A |
+| Exclusion | `unreachable: B from A` | ¬∃ path A→B | BFS from A, assert B unvisited |
+| Pass-through | `passes_through: C for A -> B` | every A→B path visits C | delete C, assert B unreachable from A |
+| Bounded depth | `within: B from A <= N` | B reachable from A in ≤ N edges | shortest-path BFS |
+| Param fraction | `param_fraction: G <= P%` | G's params ≤ P% of total | Σ group params / total |
+| Output width | `out_dim: L <= <expr>` | L's inferred last dim ≤ expr | read the inferred shape |
+
+`A`, `B`, `C` and `G` may each be a layer name or a group name. `L` must be a
+single layer — a group has no output width.
+
+**Group quantification.** When an operand is a group, the property ranges over
+its members:
+
+- `reachable: B from A` holds iff **some** `a ∈ A` reaches **some** `b ∈ B`.
+  One live wire makes influence possible.
+- `unreachable: B from A` holds iff **every** `a ∈ A` fails to reach **every**
+  `b ∈ B`. It is the exact complement of `reachable`.
+- `passes_through: C for A -> B` holds iff deleting **all** of `C`'s layers
+  makes **every** `b ∈ B` unreachable from **every** `a ∈ A`. `C` is a cut
+  *set*: deleting its members one at a time is a different, weaker check.
+- `within: B from A <= N` holds iff **some** pair is within `N` edges — it is
+  `reachable` plus a budget.
+
+**The relation is directed.** `from` always names the source, and
+`unreachable: core from cortex` is a different claim from
+`unreachable: cortex from core`. On a design where a bus carries core →
+cortex modulation, the first holds and the second correctly fails.
+
+**These checks are exact, not approximations.** A `## flow` edge carries no
+guard: if the row is in the table, the tensor flows along it on every forward
+pass. So a reported counterexample path is a real activation and gradient path.
+
+`param_fraction` and `out_dim` have no Orca equivalent — a state has no width
+and a machine has no parameters. `within` is the DAG-native rename of Orca's
+`responds`: N counts edges, not events, and the claim is about depth rather
+than latency.
+
+Failures carry stable codes and a counterexample path where one exists — see
+[`verification.md`](./verification.md).
+
 ### `## verification rules`
 
 Narrative rules, used by the LLM and reflected in stage-by-stage error reporting.
@@ -166,15 +253,21 @@ Unknown ops are passed through as `nn.Module` placeholders with a `MISSING_OP` w
 
 Stages run in order; failure in an earlier stage skips later ones for that machine.
 
-| Stage | Module | Checks |
-|-------|--------|--------|
-| 1 — Structural | `structural.py` | every layer reachable from inputs; every layer reaches an output; no cycles |
-| 2 — Naming | `naming.py` | every flow Source/Target exists; every input/output layer matches a `## tensors` row |
-| 3 — Shape | `shape.py` | input shapes to each layer match its op's input rule; declared `shape:` matches inferred |
-| 4 — Resource bounds | `resources.py` | `param_count` / `flops` / `depth` against `## invariants` |
-| 5 — Op | `ops.py` | every layer's op is in the standard library or carries an explicit out shape |
+| Stage | Checks |
+|-------|--------|
+| 1 — Naming | every flow Source/Target exists; every input/output layer matches a `## tensors` row |
+| 2 — Structural | every layer reachable from inputs; every layer reaches an output; no cycles |
+| 3 — Shape | input shapes to each layer match its op's input rule; declared `shape:` matches inferred |
+| 4 — Resource bounds | `param_count` / `flops` / `depth` / `output_shape` against `## invariants` |
+| 5 — Op | every layer's op is in the standard library or carries an explicit out shape |
+| 6 — Property | `## properties` claims about the topology, over `## groups` |
 
-Error codes are stable identifiers: `UNREACHABLE_LAYER`, `LAYER_NOT_REACHING_OUTPUT`, `CYCLE_DETECTED`, `UNKNOWN_LAYER_REFERENCE`, `SHAPE_MISMATCH`, `INPUT_ARITY_MISMATCH`, `UNDECLARED_OP`, `PARAM_BUDGET_EXCEEDED`, `OUTPUT_SHAPE_MISMATCH`.
+Naming runs first: the later stages all assume every name resolves. Stage 6
+runs last, because it needs a well-formed acyclic graph (Stages 1–2) *and* the
+inferred shapes and parameter counts (Stages 3–4); it is skipped silently when
+an earlier stage failed.
+
+Error codes are stable identifiers: `UNREACHABLE_LAYER`, `LAYER_NOT_REACHING_OUTPUT`, `CYCLE_DETECTED`, `UNKNOWN_LAYER_REFERENCE`, `SHAPE_MISMATCH`, `INPUT_ARITY_MISMATCH`, `PARAM_BUDGET_EXCEEDED`, `OUTPUT_SHAPE_MISMATCH`, `PROPERTY_EXCLUSION_FAIL`. The full catalog is in [`verification.md`](./verification.md).
 
 ---
 

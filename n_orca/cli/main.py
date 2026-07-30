@@ -137,6 +137,13 @@ def _print_human_report(report) -> None:
     print(f"  Result: {head}")
     print(f"  Parameters: {report.param_count:,}")
     print(f"  Depth: {report.depth}")
+    # Only printed when the document declares properties, so files predating
+    # Stage 6 keep byte-identical output.
+    if report.properties:
+        print(
+            f"  Properties: {report.properties_checked} checked,"
+            f" {report.properties_failed} failed"
+        )
     for err in report.errors:
         line = f"  [ERR]  {err.code}: {err.message}"
         print(line)

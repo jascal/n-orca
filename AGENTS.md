@@ -7,7 +7,8 @@ n-orca is a Markdown DSL for declaring, verifying, visualizing, and executing ne
 The core value: give LLMs (and humans) **one artifact** that covers authoring, reading, visualizing, explaining (via structured errors), and executing (compiles to runnable PyTorch `nn.Module`).
 
 It ships with:
-- Strong verifier (naming, DAG structure, shape inference, resource budgets, op coverage).
+- Strong verifier (naming, DAG structure, shape inference, resource budgets, op coverage, topology properties).
+- **Topology property checking** (`## groups` + `## properties`, verifier Stage 6): declare and *decide* claims like `unreachable: core from cortex` or `passes_through: bus for core -> cortex`, with a concrete counterexample path on failure. Ported from `orca-lang`'s bounded model checker; see `docs/grammar.md` and `docs/verification.md`.
 - Compilers to Mermaid and PyTorch.
 - First-class support for **world models** (econ-sae style substrates) and **SAE architectures** (topk, l1, jumprelu, attn_topk, supervised_topk, gated).
 - Hugging Face conversion for many model families.

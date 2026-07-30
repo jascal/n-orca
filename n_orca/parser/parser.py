@@ -12,10 +12,12 @@ from pathlib import Path
 from n_orca.ast import (
     Architecture,
     FlowEdge,
+    Group,
     Hyperparameter,
     Invariant,
     Layer,
     OpCall,
+    Property,
     Tensor,
 )
 
@@ -36,6 +38,17 @@ _TABLE_ROW_RE = re.compile(r"^\s*\|(.+)\|\s*$")
 _DOC_SEPARATOR_RE = re.compile(r"^---+\s*$")
 _OP_CALL_RE = re.compile(r"^(\w+)\s*(?:\((.*)\))?\s*$")
 _INVARIANT_RE = re.compile(r"^(\w+)\s*(<=|>=|==|=)\s*(.+)$")
+
+# `## properties` bullet grammars. Each kind is matched in full or not at all;
+# a partial match leaves the operands `None` so Stage 6 can report
+# PROPERTY_MALFORMED against the verbatim bullet.
+_PROP_REACH_RE = re.compile(r"^(reachable|unreachable):\s*(\S+)\s+from\s+(\S+)\s*$")
+_PROP_THROUGH_RE = re.compile(r"^passes_through:\s*(\S+)\s+for\s+(\S+)\s*->\s*(\S+)\s*$")
+_PROP_WITHIN_RE = re.compile(r"^within:\s*(\S+)\s+from\s+(\S+)\s*(<=)\s*(\S+)\s*$")
+_PROP_PARAM_FRACTION_RE = re.compile(
+    r"^param_fraction:\s*(\S+)\s*(<=)\s*(\d+(?:\.\d+)?%)\s*$"
+)
+_PROP_OUT_DIM_RE = re.compile(r"^out_dim:\s*(\S+)\s*(<=)\s*(.+?)\s*$")
 
 
 def parse_file(path: str | Path) -> list[Architecture]:
@@ -151,6 +164,10 @@ def _parse_document(doc_lines: list[tuple[int, str]]) -> Architecture:
             arch.flow.extend(_parse_flow(body))
         elif kind == "invariants":
             arch.invariants.extend(_parse_invariants(body))
+        elif kind == "groups":
+            arch.groups.extend(_parse_groups(body))
+        elif kind == "properties":
+            arch.properties.extend(_parse_properties(body))
         elif kind == "verification rules":
             arch.verification_rules.extend(_parse_verification_rules(body))
         else:
@@ -376,6 +393,81 @@ def _parse_invariant_value(raw: str) -> object:
         return int(raw)
     except ValueError:
         return raw
+
+
+def _parse_groups(body: list[tuple[int, str]]) -> list[Group]:
+    """Parse the `## groups` table — `| Name | Layers |`, layers comma-separated."""
+    out: list[Group] = []
+    for cells in _parse_table(body):
+        if len(cells) < 2 or not cells[0]:
+            continue
+        members = [m.strip() for m in cells[1].split(",")]
+        out.append(Group(name=cells[0], layers=[m for m in members if m]))
+    return out
+
+
+def _parse_properties(body: list[tuple[int, str]]) -> list[Property]:
+    """Parse the `## properties` bullet list.
+
+    A bullet that matches no kind's grammar still becomes a `Property`, with
+    `kind` set to whatever the author wrote before the colon and the operands
+    left `None`. Stage 6 turns that into `PROPERTY_MALFORMED`; the parser never
+    raises, because a bad property claim is a verification finding, not a
+    syntax error in the document.
+    """
+    out: list[Property] = []
+    for _, line in body:
+        bul = _BULLET_RE.match(line)
+        if not bul:
+            continue
+        text = bul.group(1).strip()
+        if not text:
+            continue
+        out.append(_parse_property(text))
+    return out
+
+
+def _parse_property(text: str) -> Property:
+    m = _PROP_REACH_RE.match(text)
+    if m:
+        return Property(kind=m.group(1), target=m.group(2), source=m.group(3), raw=text)
+
+    m = _PROP_THROUGH_RE.match(text)
+    if m:
+        return Property(
+            kind="passes_through",
+            through=m.group(1), source=m.group(2), target=m.group(3),
+            raw=text,
+        )
+
+    m = _PROP_WITHIN_RE.match(text)
+    if m:
+        return Property(
+            kind="within",
+            target=m.group(1), source=m.group(2), op=m.group(3), bound=m.group(4),
+            raw=text,
+        )
+
+    m = _PROP_PARAM_FRACTION_RE.match(text)
+    if m:
+        return Property(
+            kind="param_fraction",
+            subject=m.group(1), op=m.group(2), bound=m.group(3),
+            raw=text,
+        )
+
+    m = _PROP_OUT_DIM_RE.match(text)
+    if m:
+        return Property(
+            kind="out_dim",
+            subject=m.group(1), op=m.group(2), bound=m.group(3),
+            raw=text,
+        )
+
+    # No grammar matched. Keep the author's leading keyword so the message can
+    # say which kind they were reaching for.
+    head = text.split(":", 1)[0].strip().lower() if ":" in text else ""
+    return Property(kind=head, raw=text)
 
 
 def _parse_verification_rules(body: list[tuple[int, str]]) -> list[str]:

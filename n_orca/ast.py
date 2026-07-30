@@ -56,6 +56,50 @@ class Invariant:
 
 
 @dataclass
+class Group:
+    """A named set of layers, declared in `## groups`.
+
+    A group is nothing more than a set of layer names: it is not a subgraph,
+    not a module, and not a namespace. It exists so `## properties` can make
+    claims at subgraph granularity. Member order is the document's order and
+    is used when a diagnostic has to enumerate members.
+    """
+    name: str
+    layers: list[str] = field(default_factory=list)
+
+
+@dataclass
+class Property:
+    """A checkable topology claim, declared as one bullet in `## properties`.
+
+    One flat record covers all six kinds; `kind` is the discriminator and the
+    Stage 6 checker dispatches on it. Operands not used by a kind stay `None`,
+    which is also how the checker detects a malformed bullet.
+
+    | kind             | operands used                     |
+    |------------------|-----------------------------------|
+    | `reachable`      | source, target                    |
+    | `unreachable`    | source, target                    |
+    | `passes_through` | through, source, target           |
+    | `within`         | source, target, op, bound         |
+    | `param_fraction` | subject, op, bound                |
+    | `out_dim`        | subject, op, bound                |
+
+    `bound` stays an unresolved string: `out_dim: nm_bus <= n_affect` needs the
+    hyperparameter substitution map, which is a verifier concern, not a parser
+    one.
+    """
+    kind: str
+    source: str | None = None    # the `from` operand (A)
+    target: str | None = None    # the subject of reachability (B)
+    through: str | None = None   # the `for A -> B` cut set (C)
+    subject: str | None = None   # the bounded operand (G / L)
+    op: str = "<="               # comparison operator
+    bound: str | None = None     # right-hand side, unresolved
+    raw: str = ""                # verbatim bullet, quoted back in messages
+
+
+@dataclass
 class Architecture:
     name: str
     description: str | None = None
@@ -65,11 +109,19 @@ class Architecture:
     flow: list[FlowEdge] = field(default_factory=list)
     invariants: list[Invariant] = field(default_factory=list)
     verification_rules: list[str] = field(default_factory=list)
+    groups: list[Group] = field(default_factory=list)
+    properties: list[Property] = field(default_factory=list)
 
     def layer(self, name: str) -> Layer | None:
         for ly in self.layers:
             if ly.name == name:
                 return ly
+        return None
+
+    def group(self, name: str) -> Group | None:
+        for g in self.groups:
+            if g.name == name:
+                return g
         return None
 
     def hyperparameter(self, name: str) -> Hyperparameter | None:

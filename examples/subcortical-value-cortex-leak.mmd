@@ -1,0 +1,62 @@
+%% architecture SubcorticalValueCortexLeak
+flowchart TD
+    subgraph g_core["core"]
+        core_sense["core_sense<br/>Linear(d_obs, d_core)"]
+        core_fc["core_fc<br/>Linear(d_core, d_core)"]
+        core_add["core_add<br/>Add()"]
+        core_act["core_act<br/>Tanh()"]
+        affect_head["affect_head<br/>Linear(d_core, n_affect)"]
+        value_head["value_head<br/>Linear(d_core, 1)"]
+    end
+    subgraph g_cortex["cortex"]
+        embed["embed<br/>Linear(d_obs, d_model)"]
+        attn_norm["attn_norm<br/>LayerNorm(d_model)"]
+        attn["attn<br/>MultiHeadAttention(d_model, n_heads, dropout)"]
+        add_attn["add_attn<br/>Add()"]
+        ff["ff<br/>FeedForward(d_model, d_ff, dropout)"]
+        add_ff["add_ff<br/>Add()"]
+        cortex_ln["cortex_ln<br/>LayerNorm(d_model)"]
+        modulate["modulate<br/>Mul()"]
+        head["head<br/>Linear(d_model, d_out)"]
+    end
+    subgraph g_bus["bus"]
+        nm_bus["nm_bus<br/>Linear(n_affect, n_affect)"]
+        nm_receptor["nm_receptor<br/>Linear(n_affect, d_model)"]
+        nm_gain["nm_gain<br/>Sigmoid()"]
+    end
+    obs(("obs<br/>[input]"))
+    critic_fc["critic_fc<br/>Linear(d_model, d_core)"]
+    feedback_proj["feedback_proj<br/>Linear(d_core, d_core)"]
+    y(("y<br/>[output]"))
+    v_hat(("v_hat<br/>[output]"))
+    obs -- "obs : (B,S,d_obs)" --> embed
+    embed -- "h : (B,S,d_model)" --> attn_norm
+    attn_norm -- "h_normed : (B,S,d_model)" --> attn
+    embed -- "h_skip : (B,S,d_model)" --> add_attn
+    attn -- "attn_out : (B,S,d_model)" --> add_attn
+    add_attn -- "h_attn : (B,S,d_model)" --> ff
+    add_attn -- "h_attn_skip : (B,S,d_model)" --> add_ff
+    ff -- "ff_out : (B,S,d_model)" --> add_ff
+    add_ff -- "h_ff : (B,S,d_model)" --> cortex_ln
+    cortex_ln -- "h_cortex : (B,S,d_model)" --> modulate
+    cortex_ln -- "h_cortex : (B,S,d_model)" --> critic_fc
+    critic_fc -- "critic : (B,S,d_core)" --> feedback_proj
+    feedback_proj -- "fb : (B,S,d_core)" --> core_add
+    obs -- "obs : (B,S,d_obs)" --> core_sense
+    core_sense -- "c : (B,S,d_core)" --> core_fc
+    core_sense -- "c_skip : (B,S,d_core)" --> core_add
+    core_fc -- "c_fc : (B,S,d_core)" --> core_add
+    core_add -- "c_res : (B,S,d_core)" --> core_act
+    core_act -- "c_act : (B,S,d_core)" --> affect_head
+    core_act -- "c_act : (B,S,d_core)" --> value_head
+    value_head -- "v : (B,S,1)" --> v_hat
+    affect_head -- "affect : (B,S,n_affect)" --> nm_bus
+    nm_bus -- "nm : (B,S,n_affect)" --> nm_receptor
+    nm_receptor -- "gain_pre : (B,S,d_model)" --> nm_gain
+    nm_gain -- "gain : (B,S,d_model)" --> modulate
+    modulate -- "h_mod : (B,S,d_model)" --> head
+    head -- "y_out : (B,S,d_out)" --> y
+    classDef input fill:#dbeafe,stroke:#1e40af,color:#1e3a8a;
+    class obs input;
+    classDef output fill:#dcfce7,stroke:#166534,color:#14532d;
+    class y,v_hat output;

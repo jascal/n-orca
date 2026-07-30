@@ -1,0 +1,144 @@
+### examples/conv-classifier.n.orca.md
+Architecture: ConvClassifier
+  Result: VALID
+  Parameters: 20,042
+  Depth: 10
+
+### examples/cosmos-mot-denoise-step.n.orca.md
+Architecture: MoTDenoiseStep
+  Result: VALID
+  Parameters: 62,528
+  Depth: 9
+
+### examples/cosmos-mot-reasoner.n.orca.md
+Architecture: MoTReasonerOnly
+  Result: VALID
+  Parameters: 16,768
+  Depth: 4
+
+### examples/econ-attn-world-model.n.orca.md
+Architecture: AttnWorldModel
+  Result: VALID
+  Parameters: 59,735
+  Depth: 10
+
+### examples/econ-deep-world-model.n.orca.md
+Architecture: DeepWorldModel
+  Result: VALID
+  Parameters: 42,903
+  Depth: 8
+
+### examples/econ-temporal-world-model.n.orca.md
+Architecture: TemporalWorldModel
+  Result: VALID
+  Parameters: 76,247
+  Depth: 10
+
+### examples/econ-world-model.n.orca.md
+Architecture: WorldModel
+  Result: VALID
+  Parameters: 10,007
+  Depth: 6
+
+### examples/residual-block.n.orca.md
+Architecture: ResidualBlock
+  Result: VALID
+  Parameters: 74,112
+  Depth: 8
+
+### examples/sae-attn-topk.n.orca.md
+Architecture: AttnTopKSae
+  Result: VALID
+  Parameters: 198,016
+  Depth: 8
+
+### examples/sae-gated.n.orca.md
+Architecture: GatedSae
+  Result: VALID
+  Parameters: 197,760
+  Depth: 5
+
+### examples/sae-jumprelu.n.orca.md
+Architecture: JumpReLUSae
+  Result: VALID
+  Parameters: 25,199,360
+  Depth: 4
+
+### examples/sae-l1.n.orca.md
+Architecture: L1Sae
+  Result: VALID
+  Parameters: 25,182,976
+  Depth: 4
+
+### examples/sae-supervised-topk.n.orca.md
+Architecture: SupervisedTopKSae
+  Result: VALID
+  Parameters: 133,764
+  Depth: 5
+
+### examples/sae-topk.n.orca.md
+Architecture: TopKSae
+  Result: VALID
+  Parameters: 25,182,976
+  Depth: 5
+
+### examples/simple-mlp.n.orca.md
+Architecture: SimpleMLP
+  Result: VALID
+  Parameters: 203,530
+  Depth: 4
+
+### examples/tiny-vit.n.orca.md
+Architecture: TinyViT
+  Result: VALID
+  Parameters: 205,834
+  Depth: 10
+
+### examples/transformer-block.n.orca.md
+Architecture: TransformerBlock
+  Result: VALID
+  Parameters: 3,152,384
+  Depth: 7
+
+### examples/unet-stub.n.orca.md
+Architecture: UNetStub
+  Result: VALID
+  Parameters: 3,057
+  Depth: 9
+
+### examples/hf-generated/bert-base-uncased.n.orca.md
+Architecture: BertBaseUncased
+  Result: VALID
+  Parameters: 108,890,112
+  Depth: 77
+
+### examples/hf-generated/gpt2-small.n.orca.md
+Architecture: Gpt2
+  Result: VALID
+  Parameters: 163,087,441
+  Depth: 78
+
+### examples/hf-generated/lewm-pusht.n.orca.md
+Architecture: LewmPusht
+  Result: VALID
+  Parameters: 11,943,104
+  Depth: 118
+
+### examples/hf-generated/llama-7b.n.orca.md
+Architecture: Llama27bHf
+  Result: VALID
+  Parameters: 5,296,880,896
+  Depth: 196
+
+### examples/hf-generated/tinyllama-2L.n.orca.md
+Architecture: TinyllamaStyle
+  Result: VALID
+  Parameters: 522,216
+  Depth: 16
+
+### examples/hf-generated/vjepa2.n.orca.md
+Architecture: Vjepa2VitlFpc64256
+  Result: VALID
+  Parameters: 325,967,488
+  Depth: 222
+
