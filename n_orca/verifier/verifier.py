@@ -13,9 +13,16 @@ Six stages, in order:
 A failure in an earlier stage prevents later stages from running on that
 architecture, since their preconditions would not hold.
 
-Stage 6 lives in `properties.py` and runs last: it needs a well-formed acyclic
-graph with resolvable names (Stages 1–2) *and* the inferred shapes and
-parameter counts that Stages 3–4 put on the report.
+Stage 6 lives in `properties.py` and is the last *dependent* stage: it needs a
+well-formed acyclic graph with resolvable names (Stages 1–2) *and* the inferred
+shapes and parameter counts that Stages 3–4 put on the report.
+
+**Stage numbers are dependency order, not source order.** Stage 5 (Op) has no
+preconditions — it only warns about unknown ops — so it sits outside the
+Naming/Structural nest in `verify()` and therefore executes *after* Stage 6 in
+the source. Its number reflects where it belongs in the pipeline's story, not
+when the interpreter reaches it. Renumbering to match source order would break
+every published error code's documented stage.
 """
 from __future__ import annotations
 

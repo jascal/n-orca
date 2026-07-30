@@ -73,6 +73,26 @@ overapproximations — the reported path is a real activation and gradient path.
 The path is available structurally too, as `path` on each entry of the
 `properties.results` array in `--json` output.
 
+When the violating "path" is a single layer, that layer appears in **both**
+operands and reaches itself by the empty path. The message says so explicitly,
+because no `## flow` edge can be removed to fix it — the operands are simply
+not disjoint.
+
+**What `out_dim` measures.** `out_dim: L <= <expr>` bounds the **trailing**
+dimension of `L`'s inferred shape — `D` in `(B, S, D)` or `(B, D)`. That is the
+feature axis for every op in the standard library, but it is a convention rather
+than a guarantee: for a layer whose last axis is spatial, such as a `Conv2d`
+output `(B, C, H, W)`, `out_dim` bounds `W` and not the channel count. The
+failure message names the inferred shape so the reading is unambiguous at the
+point of failure.
+
+Both sides are resolved through the same hyperparameter substitution Stage 4
+applies to op args, so `out_dim: nm_bus <= n_affect` and
+`out_dim: h <= d_model * 4` both work. If either side stays symbolic after
+substitution — a free `B`/`S`, or a hyperparameter declared with no default —
+the check is **skipped**, not failed: n-orca treats those dimensions as opaque,
+and an unresolvable comparison is not a violation.
+
 ## How the LLM should consume errors
 
 Each error carries:

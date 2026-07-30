@@ -171,7 +171,10 @@ bullet per property. Mirrors [Orca](https://github.com/jascal/orca-lang)'s
 | Output width | `out_dim: L <= <expr>` | L's inferred last dim ≤ expr | read the inferred shape |
 
 `A`, `B`, `C` and `G` may each be a layer name or a group name. `L` must be a
-single layer — a group has no output width.
+single layer — a group has no output width. `out_dim` bounds the **trailing**
+dimension of `L`'s inferred shape (`D` in `(B, S, D)`); see
+[`verification.md`](./verification.md) for what that means when the last axis
+is spatial.
 
 **Group quantification.** When an operand is a group, the property ranges over
 its members:

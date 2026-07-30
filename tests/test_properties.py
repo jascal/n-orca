@@ -601,6 +601,35 @@ def test_out_dim_skips_an_unresolvable_bound():
     report = check(["out_dim: nm_bus <= S"])
     assert report.valid, codes(report)
     assert report.properties_failed == 0
+    assert report.properties_checked == 0
+    assert report.properties[0].skipped is True
+
+
+def test_out_dim_skips_a_hyperparameter_declared_without_a_default():
+    """No default means no substitution, so the comparison is unresolvable.
+
+    Distinct from the free-symbol case: the name *is* a declared
+    hyperparameter, it just has nothing to resolve to.
+    """
+    src = mini(["out_dim: nm_bus <= d_budget"]).replace(
+        "| n_affect | int  | 4       |",
+        "| n_affect | int  | 4       |\n| d_budget | int  |         |",
+    )
+    arch = parse(src)[0]
+    assert arch.hyperparameter("d_budget").default is None
+    report = verify(arch)
+    assert report.valid, codes(report)
+    assert report.properties[0].skipped is True
+
+
+def test_out_dim_failure_names_the_inferred_shape():
+    msg = only(check(["out_dim: head <= n_affect"]), "PROPERTY_WIDTH_FAIL")
+    assert "(B, d_model)" in msg
+    suggestion = next(
+        e.suggestion for e in check(["out_dim: head <= n_affect"]).errors
+        if e.code == "PROPERTY_WIDTH_FAIL"
+    )
+    assert "trailing dimension" in suggestion
 
 
 # --------------------------------------------------------------------------- #
@@ -710,6 +739,123 @@ def test_overlapping_operands_fail_unreachable_by_reflexivity():
 def test_a_layer_reaches_itself():
     assert check(["reachable: obs from obs"]).valid
     assert "PROPERTY_EXCLUSION_FAIL" in codes(check(["unreachable: obs from obs"]))
+
+
+def test_self_reference_failure_explains_the_empty_path():
+    """A one-layer witness needs saying out loud — no edge removal can fix it."""
+    msg = only(check(["unreachable: obs from obs"]), "PROPERTY_EXCLUSION_FAIL")
+    assert "empty path" in msg
+    assert "both operands" in msg
+    # The bare-path phrasing would read as a truncated message here.
+    assert "a path exists — obs" not in msg
+    suggestion = next(
+        e.suggestion for e in check(["unreachable: obs from obs"]).errors
+        if e.code == "PROPERTY_EXCLUSION_FAIL"
+    )
+    assert "disjoint" in suggestion
+
+
+def test_partially_overlapping_groups_report_the_shared_layer_not_a_path():
+    groups = _GROUPS + """
+| shared | modulate, core_sense                           |
+"""
+    report = check(["unreachable: shared from cortex"], groups=groups)
+    msg = only(report, "PROPERTY_EXCLUSION_FAIL")
+    # `modulate` is in both `cortex` and `shared`, so the shortest witness is
+    # the shared layer itself, not the longer cortex -> core_sense route.
+    assert "'modulate'" in msg
+    assert "empty path" in msg
+
+
+# --------------------------------------------------------------------------- #
+#  Several properties over the same operands
+# --------------------------------------------------------------------------- #
+
+
+def test_multiple_properties_on_the_same_group_pair_are_checked_independently():
+    """Each bullet gets its own verdict; none is inferred from a sibling."""
+    report = check([
+        "reachable: cortex from core",        # passes — the bus
+        "unreachable: cortex from core",     # fails  — same fact, opposite claim
+        "passes_through: bus for core -> cortex",   # passes
+        "within: cortex from core <= 2",     # fails — shortest is 4
+        "within: cortex from core <= 4",     # passes
+    ])
+    assert report.properties_checked == 5
+    assert report.properties_failed == 2
+    assert [r.passed for r in report.properties] == [True, False, True, False, True]
+    assert [r.code for r in report.properties] == [
+        None, "PROPERTY_EXCLUSION_FAIL", None, "PROPERTY_DEPTH_FAIL", None,
+    ]
+
+
+def test_contradictory_pair_always_yields_exactly_one_failure():
+    for a, b in [("core", "cortex"), ("cortex", "core"), ("bus", "cortex")]:
+        report = check([f"reachable: {b} from {a}", f"unreachable: {b} from {a}"])
+        assert report.properties_failed == 1, (a, b)
+
+
+def test_repeated_identical_properties_each_report():
+    report = check(["unreachable: cortex from core"] * 3)
+    assert report.properties_failed == 3
+    assert len(messages(report, "PROPERTY_EXCLUSION_FAIL")) == 3
+
+
+# --------------------------------------------------------------------------- #
+#  Determinism under fan-in
+# --------------------------------------------------------------------------- #
+
+
+def test_earliest_target_wins_under_many_equidistant_parallel_paths():
+    """With 12 equal-length leaks, the witness must be stable and predictable.
+
+    Every `leak_NN` sits one hop from `affect_head`, so all 12 tie at distance
+    1. The rule is document order: the target listed first in the group wins,
+    and within that, the earliest `## flow` row.
+    """
+    n = 12
+    extra_layers = "".join(
+        f"\n## layer leak_{i:02d}\n- op: Linear(n_affect, d_model)\n" for i in range(n)
+    )
+    extra_flow = "".join(
+        f"| affect_head | leak_{i:02d} | a{i:02d} |\n| leak_{i:02d} | modulate | g{i:02d} |\n"
+        for i in range(n)
+    )
+    # Group members deliberately listed in reverse of the flow-row order, so a
+    # naive "first row wins" implementation would disagree with the spec.
+    members = ", ".join(f"leak_{i:02d}" for i in reversed(range(n)))
+    groups = _GROUPS + f"""
+| leaks  | {members} |
+"""
+    reports = [
+        check(["unreachable: leaks from core"],
+              groups=groups, extra_layers=extra_layers, extra_flow=extra_flow)
+        for _ in range(6)
+    ]
+    paths = {tuple(r.properties[0].path) for r in reports}
+    assert len(paths) == 1, f"non-deterministic witness: {paths}"
+    # Group member order decides the tie, not flow-row order.
+    assert reports[0].properties[0].path == ["affect_head", f"leak_{n - 1:02d}"]
+
+
+def test_wide_fan_in_add_still_resolves_a_shortest_witness():
+    """Many predecessors into one layer: the witness stays the shortest route."""
+    n = 8
+    extra_layers = "".join(
+        f"\n## layer fan_{i:02d}\n- op: Linear(d_model, d_model)\n" for i in range(n)
+    )
+    extra_flow = "".join(
+        f"| cortex_ln | fan_{i:02d} | f{i:02d} |\n| fan_{i:02d} | modulate | m{i:02d} |\n"
+        for i in range(n)
+    )
+    report = check(
+        ["within: modulate from cortex_ln <= 1", "reachable: modulate from cortex_ln"],
+        extra_layers=extra_layers,
+        extra_flow=extra_flow,
+    )
+    # The direct cortex_ln -> modulate edge is still the shortest route.
+    assert report.valid, codes(report)
+    assert report.properties[1].path == ["cortex_ln", "modulate"]
 
 
 # --------------------------------------------------------------------------- #

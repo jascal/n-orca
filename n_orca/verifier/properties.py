@@ -362,6 +362,27 @@ def _check_unreachable(
     if not path:
         return _passed(prop)
 
+    if len(path) == 1:
+        # The witness is a single layer present in both operands — it reaches
+        # itself by the empty path. Spelling that out matters: "a path exists —
+        # embed" reads like a truncated message, and the actual fault is that
+        # the two things being separated are not disjoint. No edge can be
+        # removed to fix this one.
+        report.add_error(
+            "PROPERTY_EXCLUSION_FAIL",
+            f"property `{prop.raw}` fails: layer {path[0]!r} appears in both"
+            f" operands, and a layer always reaches itself by the empty path",
+            f"make the two operands disjoint — remove {path[0]} from one of"
+            f" them; no `## flow` edge can sever this",
+        )
+        return PropertyResult(
+            kind=prop.kind,
+            raw=prop.raw,
+            passed=False,
+            code="PROPERTY_EXCLUSION_FAIL",
+            path=path,
+        )
+
     report.add_error(
         "PROPERTY_EXCLUSION_FAIL",
         f"property `{prop.raw}` fails: a path exists — {_chain(path)}",
@@ -553,6 +574,14 @@ def _check_out_dim(
 ) -> PropertyResult:
     """A single layer's inferred output width.
 
+    "Width" means the **trailing** dimension of the inferred shape — `D` in
+    `(B, S, D)` or `(B, D)`. That is the feature axis for every op in the
+    standard library, but it is an assumption, not a theorem: for a layer whose
+    last axis is spatial (say a `Conv2d` output `(B, C, H, W)`) this bounds `W`,
+    not the channel count. Documented in `docs/verification.md`; the message
+    says "output last dim" rather than "width" so the reading is unambiguous
+    at the point of failure.
+
     Also DAG-native: a state has no width. The bound goes through
     `_resolve_arg`, the same hyperparameter-substitution path Stage 4 uses for
     op args, so `out_dim: nm_bus <= n_affect` and `out_dim: h <= d_model * 4`
@@ -593,8 +622,10 @@ def _check_out_dim(
     report.add_error(
         "PROPERTY_WIDTH_FAIL",
         f"property `{prop.raw}` fails: layer {name!r} output last dim is"
-        f" {actual}, exceeding {shown}",
-        f"reduce the output width of {name}, or raise the bound to {actual}",
+        f" {actual}, exceeding {shown}"
+        f" (inferred shape {'(' + ', '.join(shape) + ')'})",
+        f"reduce the trailing dimension of {name}'s output — `out_dim` bounds the"
+        f" last axis of the inferred shape — or raise the bound to {actual}",
     )
     return PropertyResult(
         kind=prop.kind, raw=prop.raw, passed=False, code="PROPERTY_WIDTH_FAIL"
