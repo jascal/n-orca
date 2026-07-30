@@ -1,6 +1,6 @@
 """Verification pipeline for N-Orca architectures.
 
-Five stages, in order:
+Six stages, in order:
 
 1. Naming      — every flow edge endpoint and tensor reference resolves
 2. Structural  — DAG, reachability, every layer reaches an output
@@ -8,9 +8,21 @@ Five stages, in order:
                   declared shapes match inferred
 4. Resource    — `param_count` / `flops` / `depth` / `output_shape` invariants
 5. Op          — every layer has a known op (or warning for unknown)
+6. Property    — `## properties` claims about the topology, over `## groups`
 
 A failure in an earlier stage prevents later stages from running on that
 architecture, since their preconditions would not hold.
+
+Stage 6 lives in `properties.py` and is the last *dependent* stage: it needs a
+well-formed acyclic graph with resolvable names (Stages 1–2) *and* the inferred
+shapes and parameter counts that Stages 3–4 put on the report.
+
+**Stage numbers are dependency order, not source order.** Stage 5 (Op) has no
+preconditions — it only warns about unknown ops — so it sits outside the
+Naming/Structural nest in `verify()` and therefore executes *after* Stage 6 in
+the source. Its number reflects where it belongs in the pipeline's story, not
+when the interpreter reaches it. Renumbering to match source order would break
+every published error code's documented stage.
 """
 from __future__ import annotations
 
@@ -35,6 +47,23 @@ class VerificationWarning(VerificationError):
 
 
 @dataclass
+class PropertyResult:
+    """The outcome of one `## properties` claim.
+
+    `skipped` marks a claim that could not be evaluated for a benign reason —
+    an unresolvable symbolic bound, a layer whose shape Stage 3 gave up on. A
+    skipped claim is neither a pass nor a failure, and is excluded from both
+    counts, so `Properties: N checked` never overstates what was proved.
+    """
+    kind: str
+    raw: str
+    passed: bool
+    code: str | None = None
+    path: list[str] = field(default_factory=list)
+    skipped: bool = False
+
+
+@dataclass
 class VerificationReport:
     architecture: str
     valid: bool = True
@@ -43,6 +72,16 @@ class VerificationReport:
     inferred_shapes: dict[str, tuple[str, ...]] = field(default_factory=dict)
     param_count: int = 0
     depth: int = 0
+    groups: dict[str, list[str]] = field(default_factory=dict)
+    properties: list[PropertyResult] = field(default_factory=list)
+
+    @property
+    def properties_checked(self) -> int:
+        return len([p for p in self.properties if not p.skipped])
+
+    @property
+    def properties_failed(self) -> int:
+        return len([p for p in self.properties if not p.skipped and not p.passed])
 
     def add_error(self, code: str, message: str, suggestion: str | None = None) -> None:
         self.errors.append(VerificationError(code=code, message=message, suggestion=suggestion))
@@ -62,11 +101,24 @@ class VerificationReport:
             "param_count": self.param_count,
             "depth": self.depth,
             "inferred_shapes": {k: list(v) for k, v in self.inferred_shapes.items()},
+            "groups": {name: list(members) for name, members in self.groups.items()},
+            "properties": {
+                "checked": self.properties_checked,
+                "passed": self.properties_checked - self.properties_failed,
+                "failed": self.properties_failed,
+                "results": [p.__dict__ for p in self.properties],
+            },
         }
 
 
 def verify(arch: Architecture, *, strict: bool = False) -> VerificationReport:
     """Run the full pipeline against `arch` and return a report."""
+    # Imported here, not at module scope: `properties.py` needs `_resolve_arg`
+    # from this module so `out_dim` bounds resolve through exactly the same
+    # substitution path Stage 4 uses for op args. A module-level import in both
+    # directions would be a cycle.
+    from n_orca.verifier.properties import check_properties
+
     report = VerificationReport(architecture=arch.name)
 
     # Stage 1 — Naming.
@@ -77,6 +129,11 @@ def verify(arch: Architecture, *, strict: bool = False) -> VerificationReport:
             _stage_shape(arch, report)
             # Stage 4 — Resource bounds (uses any inferred values we have).
             _stage_resources(arch, report)
+            # Stage 6 — Property checks. Last, because `param_fraction` and
+            # `out_dim` read what Stages 3–4 just put on the report. Skipped
+            # silently when Naming or Structural failed: BFS over a graph the
+            # author did not write would bury the real error in noise.
+            check_properties(arch, report)
     # Stage 5 — Op coverage warnings always run, no dependency.
     _stage_ops(arch, report)
 
@@ -405,32 +462,56 @@ def _stage_shape(arch: Architecture, report: VerificationReport) -> None:
 # --------------------------------------------------------------------------- #
 
 
+def hp_substitutions(arch: Architecture) -> dict[str, str]:
+    """Map hyperparameter names to their declared defaults, as strings.
+
+    This lets us resolve symbolic op-args like `Linear(in_dim, hidden)` to
+    concrete integers for param counting. The numeric values are estimates
+    based on declared defaults — overrideable at runtime by the host.
+    """
+    return {
+        hp.name: str(hp.default)
+        for hp in arch.hyperparameters
+        if hp.default is not None
+    }
+
+
+def layer_params(
+    arch: Architecture,
+    ly: Layer,
+    report: VerificationReport,
+    hp_subs: dict[str, str],
+) -> int:
+    """Parameter count for one layer, or 0 when it cannot be determined.
+
+    Stage 4 sums this over every layer to get `report.param_count`; Stage 6's
+    `param_fraction` sums it over a group's members. Sharing the function is
+    what makes the fraction's numerator and denominator commensurable — two
+    independent implementations would eventually disagree and the ratio would
+    quietly stop meaning anything.
+    """
+    if ly.op is None:
+        return 0
+    try:
+        spec = get_op(ly.op.name)
+    except UnknownOpError:
+        return 0
+    resolved_args = [_resolve_arg(a, hp_subs) for a in ly.op.args]
+    ordered_preds = [e.source for e in arch.flow if e.target == ly.name]
+    in_shapes = [
+        report.inferred_shapes[p] for p in ordered_preds if p in report.inferred_shapes
+    ]
+    try:
+        return spec.params(resolved_args, in_shapes)
+    except Exception:
+        return 0
+
+
 def _stage_resources(arch: Architecture, report: VerificationReport) -> None:
-    # Build a substitution map from hyperparameter names to their default values.
-    # This lets us resolve symbolic op-args like `Linear(in_dim, hidden)` to
-    # concrete integers for param counting. The numeric values are estimates
-    # based on declared defaults — overrideable at runtime by the host.
-    hp_subs: dict[str, str] = {}
-    for hp in arch.hyperparameters:
-        if hp.default is not None:
-            hp_subs[hp.name] = str(hp.default)
+    hp_subs = hp_substitutions(arch)
 
     # Compute parameter count and depth (longest path in DAG).
-    total_params = 0
-    for ly in arch.layers:
-        if ly.op is None:
-            continue
-        try:
-            spec = get_op(ly.op.name)
-        except UnknownOpError:
-            continue
-        resolved_args = [_resolve_arg(a, hp_subs) for a in ly.op.args]
-        ordered_preds = [e.source for e in arch.flow if e.target == ly.name]
-        in_shapes = [report.inferred_shapes[p] for p in ordered_preds if p in report.inferred_shapes]
-        try:
-            total_params += spec.params(resolved_args, in_shapes)
-        except Exception:
-            pass
+    total_params = sum(layer_params(arch, ly, report, hp_subs) for ly in arch.layers)
     report.param_count = total_params
 
     depth = _longest_path_depth(arch)

@@ -149,7 +149,7 @@ Architecture: ResidualBlock
 
 ## Verification pipeline
 
-Five stages, run in order. A failure in an earlier stage stops later stages
+Six stages, run in order. A failure in an earlier stage stops later stages
 on that architecture (their preconditions wouldn't hold).
 
 | Stage | What it checks | Example error codes |
@@ -159,9 +159,50 @@ on that architecture (their preconditions wouldn't hold).
 | 3 — Shape       | each layer's input shapes match its op's input rule; declared `shape:` matches inferred | `SHAPE_MISMATCH`, `INPUT_ARITY_MISMATCH`, `DECLARED_SHAPE_MISMATCH` |
 | 4 — Resource    | `param_count` / `depth` / `output_shape` against `## invariants` | `PARAM_BUDGET_EXCEEDED`, `DEPTH_BUDGET_EXCEEDED`, `OUTPUT_SHAPE_INVARIANT` |
 | 5 — Op coverage | every layer's op exists in the standard library (warning if not) | `UNKNOWN_OP` |
+| 6 — Property    | `## properties` claims about the topology, over `## groups` | `PROPERTY_EXCLUSION_FAIL`, `PROPERTY_PATH_FAIL`, `PROPERTY_DEPTH_FAIL` |
 
 See [`docs/verification.md`](docs/verification.md) for the full error
 catalog with examples.
+
+### Topology properties
+
+Stage 6 decides claims the other stages can't express — chiefly *"is this
+subgraph structurally incapable of influencing that one?"*, which is the
+question that matters when an information boundary is the design claim rather
+than an implementation detail.
+
+```markdown
+## groups
+
+| Name   | Layers                                                  |
+|--------|---------------------------------------------------------|
+| core   | core_sense, core_fc, core_add, core_act, affect_head     |
+| cortex | embed, attn_norm, attn, add_attn, ff, add_ff, cortex_ln  |
+| bus    | nm_bus, nm_receptor, nm_gain                             |
+
+## properties
+- reachable: v_hat from obs
+- unreachable: core from cortex
+- passes_through: bus for core -> cortex
+- within: y from obs <= 12
+- param_fraction: core <= 1%
+- out_dim: nm_bus <= n_affect
+```
+
+Failures name the concrete violating path, not just the violated claim:
+
+```
+[ERR]  PROPERTY_EXCLUSION_FAIL: property `unreachable: core from cortex` fails:
+       a path exists — cortex_ln -> critic_fc -> feedback_proj -> core_add
+```
+
+Groups also render as Mermaid `subgraph` blocks, so the asserted boundary shows
+up in the diagram. Worked pair:
+[`examples/subcortical-value-cortex.n.orca.md`](examples/subcortical-value-cortex.n.orca.md)
+and its deliberately-broken twin
+[`…-leak.n.orca.md`](examples/subcortical-value-cortex-leak.n.orca.md).
+See [`docs/grammar.md`](docs/grammar.md) for the syntax and the
+group-quantification rules.
 
 ---
 

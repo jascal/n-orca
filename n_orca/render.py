@@ -5,7 +5,7 @@ for readability — wide enough for the longest cell in each column.
 """
 from __future__ import annotations
 
-from n_orca.ast import Architecture, Hyperparameter, Tensor, Layer, FlowEdge
+from n_orca.ast import Architecture, Hyperparameter, Tensor, Layer, FlowEdge, Property
 
 
 def render(arch: Architecture) -> str:
@@ -57,6 +57,21 @@ def render(arch: Architecture) -> str:
             [[e.source, e.target, e.tensor] for e in arch.flow],
         ))
 
+    if arch.groups:
+        lines.append("")
+        lines.append("## groups")
+        lines.append("")
+        lines.extend(_render_table(
+            ["Name", "Layers"],
+            [[g.name, ", ".join(g.layers)] for g in arch.groups],
+        ))
+
+    if arch.properties:
+        lines.append("")
+        lines.append("## properties")
+        for prop in arch.properties:
+            lines.append(f"- {_render_property(prop)}")
+
     if arch.invariants:
         lines.append("")
         lines.append("## invariants")
@@ -74,6 +89,26 @@ def render(arch: Architecture) -> str:
 
     lines.append("")
     return "\n".join(lines)
+
+
+def _render_property(prop: Property) -> str:
+    """Render one `## properties` bullet body.
+
+    A parsed property carries its verbatim source in `raw`, which is what we
+    emit — that keeps the round-trip exact, including the author's spacing.
+    Only programmatically-built properties need reconstruction.
+    """
+    if prop.raw:
+        return prop.raw
+    if prop.kind in ("reachable", "unreachable"):
+        return f"{prop.kind}: {prop.target} from {prop.source}"
+    if prop.kind == "passes_through":
+        return f"passes_through: {prop.through} for {prop.source} -> {prop.target}"
+    if prop.kind == "within":
+        return f"within: {prop.target} from {prop.source} {prop.op} {prop.bound}"
+    if prop.kind in ("param_fraction", "out_dim"):
+        return f"{prop.kind}: {prop.subject} {prop.op} {prop.bound}"
+    return prop.kind
 
 
 def _render_layer_heading(layer: Layer) -> str:

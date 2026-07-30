@@ -3,10 +3,14 @@
 Emits a `flowchart TD` (top-down) diagram with one node per layer. Tensor
 flow edges carry the tensor name and (if available) the inferred shape, so
 the diagram is self-documenting.
+
+Declared `## groups` become `subgraph` blocks. That is the highest-leverage
+part of property checking for a human reader: an asserted isolation boundary
+stops being a claim in a table and becomes a box in the picture.
 """
 from __future__ import annotations
 
-from n_orca.ast import Architecture
+from n_orca.ast import Architecture, Layer
 from n_orca.verifier import verify
 
 
@@ -19,19 +23,30 @@ def compile_mermaid(arch: Architecture) -> str:
     lines.append(f"%% architecture {arch.name}")
     lines.append("flowchart TD")
 
+    # Mermaid requires a node to be declared inside its subgraph before any
+    # edge mentions it, so grouped nodes come first, then ungrouped ones, then
+    # every edge. A layer listed in two groups is drawn in the first that
+    # claims it — Mermaid subgraphs cannot overlap, and `GROUP_OVERLAP` has
+    # already warned about the ambiguity.
+    claimed: set[str] = set()
+    for group in arch.groups:
+        members = [
+            name for name in group.layers
+            if name not in claimed and arch.layer(name) is not None
+        ]
+        if not members:
+            continue
+        lines.append(f"    subgraph g_{_mid(group.name)}[{_quote(group.name)}]")
+        for name in members:
+            claimed.add(name)
+            ly = arch.layer(name)
+            if ly is not None:
+                lines.append(f"        {_node(ly)}")
+        lines.append("    end")
+
     for ly in arch.layers:
-        node_id = _mid(ly.name)
-        if ly.is_input:
-            label = _quote(f"{ly.name}<br/>[input]")
-            shape = f"(({label}))"
-        elif ly.is_output:
-            label = _quote(f"{ly.name}<br/>[output]")
-            shape = f"(({label}))"
-        else:
-            op_str = _format_op(ly)
-            label = _quote(f"{ly.name}<br/>{op_str}")
-            shape = f"[{label}]"
-        lines.append(f"    {node_id}{shape}")
+        if ly.name not in claimed:
+            lines.append(f"    {_node(ly)}")
 
     for edge in arch.flow:
         src = _mid(edge.source)
@@ -56,6 +71,16 @@ def compile_mermaid(arch: Architecture) -> str:
         lines.append(f"    class {','.join(outputs)} output;")
 
     return "\n".join(lines)
+
+
+def _node(ly: Layer) -> str:
+    """One node declaration: `id[label]`, or `id((label))` for an input/output."""
+    node_id = _mid(ly.name)
+    if ly.is_input:
+        return f"{node_id}(({_quote(f'{ly.name}<br/>[input]')}))"
+    if ly.is_output:
+        return f"{node_id}(({_quote(f'{ly.name}<br/>[output]')}))"
+    return f"{node_id}[{_quote(f'{ly.name}<br/>{_format_op(ly)}')}]"
 
 
 def _mid(name: str) -> str:

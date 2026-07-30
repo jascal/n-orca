@@ -44,8 +44,21 @@
 
 This goal is intended to be driven by recurring schedulers, background sub-agents, and interactive sessions with Grok. It should run "carefully but indefinitely" until the user decides the project has reached a stable mature state.
 
-Last updated: 2026-06-04 (addressed all 6 issues in open PR#10 via worktree addressing mode: compiler special-case for Dual, docstring, tests for Dual, layer comment; local 147p + ex VALID; CI success; merged PR#10; appended log).
+Last updated: 2026-07-29 (added verifier Stage 6 — topology property checking — via OpenSpec change `add-topology-properties`; 231 passed / 7 skipped; all pre-existing examples byte-identical).
 ## Recent Activity
+
+**2026-07-29 (human-directed change: topology property checking)**:
+- Checked `gh pr list --state open` first: **no open PRs**, so no scope collision with the verifier/parser/AST.
+- Landed OpenSpec change `add-topology-properties` (proposal + design + tasks + `specs/verification/spec.md`; `openspec validate` clean).
+- **New verifier Stage 6** in `n_orca/verifier/properties.py` (`check_properties`), dispatched from `verify()` after Stage 4 and skipped silently when Naming or Structural failed.
+- **Two new sections**: `## groups` (table of named layer sets) and `## properties` (bullet list). Six kinds: `reachable`, `unreachable`, `passes_through` and `within` ported from `orca-lang`'s bounded model checker; `param_fraction` and `out_dim` are DAG-native with no `orca-lang` analogue. `live` and `invariant` deliberately not ported (Stage 2 and `## invariants` already cover them).
+- **Counterexample paths** on `PROPERTY_EXCLUSION_FAIL` / `PROPERTY_PATH_FAIL` — shortest witness, deterministic (adjacency in `## flow` row order, FIFO BFS). Unlike `orca-lang` these results are *exact*, not overapproximations: a flow edge carries no guard, so a reported path is a real activation/gradient path. Do not add `orca-lang`'s guard disclaimer here — it would be false.
+- Surface propagated per the AGENTS.md rule: parser, `render`, Mermaid (`## groups` → `subgraph` blocks), CLI (`Properties: N checked, M failed` + `--json` + `--strict`), MCP `verify_markdown` (no code change needed — it is a `to_dict()` wrapper), the `n-orca-verify` skill (per-code fix guidance), `docs/grammar.md`, `docs/verification.md`, README, AGENTS.md.
+- Bonus fix: `docs/grammar.md`'s pipeline table had Structural before Naming, contradicting the code and `docs/verification.md`. Corrected, and Stage 6 added.
+- New examples: `subcortical-value-cortex.n.orca.md` (VALID, 3,226,609 params, depth 11, 6/6 properties) and `subcortical-value-cortex-leak.n.orca.md` (INVALID by design — a critic head feeding back into the value core; fails with `cortex_ln -> critic_fc -> feedback_proj -> core_add`). CI's example sweep now skips `*-leak.n.orca.md`.
+- Regression guarded by committed baselines in `tests/data/`: every pre-existing example's `verify` and `compile mermaid` output is asserted byte-identical, and those files are asserted to declare no groups/properties (so the baseline actually proves stability).
+- Tests: `tests/test_properties.py`, 88 new. Suite **231 passed, 7 skipped** (was 143/6).
+- Note for future cycles: `ruff` is not installed in `.venv` and not declared in `pyproject.toml`, so the workspace-level `ruff check` instruction has no gate in this repo (CI runs `pytest` only). Also, `n_orca/mcp_server.py` imports `mcp.server.fastmcp`, which **mcp 2.0 removed** — the `[mcp]` extra is unpinned, so CI will break when it resolves 2.x. Not touched here (out of scope); worth its own change.
 
 **2026-06-02 (initial setup by Grok during n-orca lead handoff)**:
 - Created this IMPROVEMENT_GOAL.md file with core principles, focus areas, and working instructions.
