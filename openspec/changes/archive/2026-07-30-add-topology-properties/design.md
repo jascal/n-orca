@@ -461,6 +461,25 @@ depth 11** — not the quoted figures, which belong to a file this change never
 saw. The properties, the groups, and the boundary they assert are the ones
 specified; only the hyperparameter sizes are ours.
 
+**Resolved after the fact (PR #15).** The source architecture was later supplied
+and now ships as `examples/subcortical-value-cortex-full.n.orca.md`. It verifies
+clean at exactly **3,390,657 params, depth 19** — the quoted figures. So the
+reconstruction above had the boundary right and the sizes wrong.
+
+It also exposes a reduction this change got *semantically* wrong, which is worth
+recording because it is the more interesting error. In the fixture the value head
+sits **inside** `core` and reads `core_act`, so `unreachable: core from cortex`
+holds **trivially** — nothing cortical was ever reaching toward the core, and the
+property has nothing to bite on. In the real design the critic lives in the
+**cortex**, reads cortical latents, and regresses onto the core's affect signal;
+that bridge is the whole mechanism the isolation claim exists to protect, and it
+carries a further claim the fixture cannot state: `unreachable: core from critic`.
+
+Both files are kept. The minimal pair is the better regression fixture (small,
+fast, and the leak twin isolates one failure); the full architecture is the
+better worked example. A checker test and a claim test are not the same test, and
+this change only ever had the former.
+
 `cortex` additionally contains `modulate` and `head`. Without `modulate` in
 `cortex` there is no core → cortex path at all, and
 `passes_through: bus for core -> cortex` would hold **vacuously** (§4.3) —
