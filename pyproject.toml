@@ -54,9 +54,12 @@ Documentation = "https://github.com/jascal/n-orca#readme"
 [project.optional-dependencies]
 torch = ["torch>=2.0"]
 hf = ["huggingface_hub>=0.20"]
-mcp = ["mcp>=1.0", "huggingface_hub>=0.20"]
+# `mcp` is capped below 2.0: that release removed `mcp.server.fastmcp`, which
+# `n_orca/mcp_server.py` imports. The cap is a stopgap so the declared contract
+# matches the code — porting the server to the 2.x API is its own change.
+mcp = ["mcp>=1.0,<2", "huggingface_hub>=0.20"]
 test = ["pytest>=7.0", "pytest-cov>=4.0"]
-all = ["torch>=2.0", "huggingface_hub>=0.20", "mcp>=1.0", "pytest>=7.0", "pytest-cov>=4.0"]
+all = ["torch>=2.0", "huggingface_hub>=0.20", "mcp>=1.0,<2", "pytest>=7.0", "pytest-cov>=4.0"]
 
 [project.scripts]
 n-orca = "n_orca.cli.main:main"
