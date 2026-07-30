@@ -1,0 +1,77 @@
+%% architecture SubcorticalValueCortexFull
+flowchart TD
+    subgraph g_core["core"]
+        core_sense["core_sense<br/>Linear(obs_dim, core_hidden)"]
+        core_fc["core_fc<br/>Linear(soma_dim, core_hidden)"]
+        core_add["core_add<br/>Add()"]
+        core_act["core_act<br/>Tanh()"]
+        affect_head["affect_head<br/>Linear(core_hidden, n_affect)"]
+        affect_squash["affect_squash<br/>Tanh()"]
+        soma_update["soma_update<br/>Linear(core_hidden, soma_dim)"]
+    end
+    subgraph g_cortex["cortex"]
+        embed["embed<br/>Linear(obs_dim, d_model)"]
+        attn_norm["attn_norm<br/>LayerNorm(d_model)"]
+        attn["attn<br/>MultiHeadAttention(d_model, n_heads, dropout)"]
+        attn_gate["attn_gate<br/>Mul()"]
+        add_attn["add_attn<br/>Add()"]
+        ff_norm["ff_norm<br/>LayerNorm(d_model)"]
+        ff["ff<br/>FeedForward(d_model, d_ff, dropout)"]
+        ff_gate["ff_gate<br/>Mul()"]
+        add_ff["add_ff<br/>Add()"]
+        cortex_ln["cortex_ln<br/>LayerNorm(d_model)"]
+        policy_head["policy_head<br/>Linear(d_model, act_dim)"]
+    end
+    subgraph g_critic["critic"]
+        critic_fc["critic_fc<br/>Linear(d_model, critic_hidden)"]
+        critic_act["critic_act<br/>GELU()"]
+        critic_head["critic_head<br/>Linear(critic_hidden, 1)"]
+    end
+    subgraph g_bus["bus"]
+        nm_bus["nm_bus<br/>Linear(n_affect, nm_dim)"]
+        nm_receptor["nm_receptor<br/>Linear(nm_dim, d_model)"]
+        nm_gain["nm_gain<br/>Sigmoid()"]
+    end
+    obs(("obs<br/>[input]"))
+    soma_in(("soma_in<br/>[input]"))
+    affect(("affect<br/>[output]"))
+    soma_out(("soma_out<br/>[output]"))
+    y(("y<br/>[output]"))
+    v_hat(("v_hat<br/>[output]"))
+    obs -- "obs_raw : (B,S,obs_dim)" --> core_sense
+    soma_in -- "soma : (B,S,soma_dim)" --> core_fc
+    core_sense -- "us_drive : (B,S,core_hidden)" --> core_add
+    core_fc -- "homeostat : (B,S,core_hidden)" --> core_add
+    core_add -- "core_pre : (B,S,core_hidden)" --> core_act
+    core_act -- "core_h : (B,S,core_hidden)" --> affect_head
+    affect_head -- "affect_pre : (B,S,n_affect)" --> affect_squash
+    affect_squash -- "affect_vec : (B,S,n_affect)" --> affect
+    core_act -- "core_h : (B,S,core_hidden)" --> soma_update
+    soma_update -- "soma_next : (B,S,soma_dim)" --> soma_out
+    affect_squash -- "affect_vec : (B,S,n_affect)" --> nm_bus
+    nm_bus -- "nm : (B,S,nm_dim)" --> nm_receptor
+    nm_receptor -- "gain_pre : (B,S,d_model)" --> nm_gain
+    obs -- "obs_cortex : (B,S,obs_dim)" --> embed
+    embed -- "h0 : (B,S,d_model)" --> attn_norm
+    attn_norm -- "h0_normed : (B,S,d_model)" --> attn
+    attn -- "attn_out : (B,S,d_model)" --> attn_gate
+    nm_gain -- "gain_attn : (B,S,d_model)" --> attn_gate
+    attn_gate -- "attn_gated : (B,S,d_model)" --> add_attn
+    embed -- "h0_skip : (B,S,d_model)" --> add_attn
+    add_attn -- "h1 : (B,S,d_model)" --> ff_norm
+    ff_norm -- "h1_normed : (B,S,d_model)" --> ff
+    ff -- "ff_out : (B,S,d_model)" --> ff_gate
+    nm_gain -- "gain_ff : (B,S,d_model)" --> ff_gate
+    ff_gate -- "ff_gated : (B,S,d_model)" --> add_ff
+    add_attn -- "h1_skip : (B,S,d_model)" --> add_ff
+    add_ff -- "h2 : (B,S,d_model)" --> cortex_ln
+    cortex_ln -- "h_cortex : (B,S,d_model)" --> policy_head
+    policy_head -- "logits : (B,S,act_dim)" --> y
+    cortex_ln -- "h_cortex : (B,S,d_model)" --> critic_fc
+    critic_fc -- "v_pre : (B,S,critic_hidden)" --> critic_act
+    critic_act -- "v_h : (B,S,critic_hidden)" --> critic_head
+    critic_head -- "value : (B,S,1)" --> v_hat
+    classDef input fill:#dbeafe,stroke:#1e40af,color:#1e3a8a;
+    class obs,soma_in input;
+    classDef output fill:#dcfce7,stroke:#166534,color:#14532d;
+    class affect,soma_out,y,v_hat output;

@@ -201,6 +201,15 @@ up in the diagram. Worked pair:
 [`examples/subcortical-value-cortex.n.orca.md`](examples/subcortical-value-cortex.n.orca.md)
 and its deliberately-broken twin
 [`…-leak.n.orca.md`](examples/subcortical-value-cortex-leak.n.orca.md).
+
+Those two are minimal fixtures. The architecture they were reduced from is
+[`…-full.n.orca.md`](examples/subcortical-value-cortex-full.n.orca.md) — an
+interoceptive state carry, two independently gated residual writes, and a
+critic that lives in the **cortex** and regresses onto the core's affect
+signal. That last part is the mechanism the isolation property exists to
+protect, so it carries an extra claim the fixtures don't:
+`unreachable: core from critic`.
+
 See [`docs/grammar.md`](docs/grammar.md) for the syntax and the
 group-quantification rules.
 
