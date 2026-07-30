@@ -1278,7 +1278,7 @@ def test_pre_existing_examples_declare_no_groups_or_properties():
 # --------------------------------------------------------------------------
 
 
-def _full() -> "object":
+def _full():
     return parse(FULL.read_text(encoding="utf-8"))[0]
 
 
