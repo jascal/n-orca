@@ -1159,6 +1159,7 @@ def test_mcp_verify_markdown_carries_properties_and_groups():
 
 POSITIVE = EXAMPLES / "subcortical-value-cortex.n.orca.md"
 LEAK = EXAMPLES / "subcortical-value-cortex-leak.n.orca.md"
+FULL = EXAMPLES / "subcortical-value-cortex-full.n.orca.md"
 
 
 def test_positive_example_verifies_clean_with_all_six_kinds():
@@ -1221,7 +1222,7 @@ MERMAID_BASELINE = Path(__file__).parent / "data" / "example_mermaid_baseline.tx
 
 
 def _pre_existing_examples() -> list[Path]:
-    new = {POSITIVE.name, LEAK.name}
+    new = {POSITIVE.name, LEAK.name, FULL.name}
     files = sorted(EXAMPLES.glob("*.n.orca.md")) + sorted(
         (EXAMPLES / "hf-generated").glob("*.n.orca.md")
     )
@@ -1264,3 +1265,48 @@ def test_pre_existing_examples_declare_no_groups_or_properties():
         for arch in parse(f.read_text(encoding="utf-8")):
             assert arch.groups == []
             assert arch.properties == []
+
+
+# --------------------------------------------------------------------------
+# The full architecture of record.
+#
+# POSITIVE is a minimal fixture: it exercises groups, the bus bottleneck and
+# param_fraction, and its value head lives inside `core`. FULL is the design
+# it was reduced from — the critic sits in the *cortex*, reads cortical
+# latents, and regresses onto the core's affect signal. That bridge is the
+# whole mechanism, so it gets its own guarded example.
+# --------------------------------------------------------------------------
+
+
+def _full() -> "object":
+    return parse(FULL.read_text(encoding="utf-8"))[0]
+
+
+def test_full_example_verifies_clean():
+    report = verify(_full())
+    assert report.valid
+    assert [p.raw for p in report.properties if not p.passed] == []
+    assert len(report.properties) == 8
+
+
+def test_full_example_critic_is_cortical_not_subcortical():
+    """The bridge: the critic must read cortical latents, never core_act."""
+    arch = _full()
+    groups = {g.name: set(g.layers) for g in arch.groups}
+    assert "critic_fc" in groups["critic"]
+    assert not (groups["critic"] & groups["core"])
+    sources = {e.source for e in arch.flow if e.target == "critic_fc"}
+    assert sources == {"cortex_ln"}
+
+
+def test_full_example_excludes_core_from_critic():
+    """critic is the trainable module closest to the core signal — pin it."""
+    props = {p.raw for p in verify(_full()).properties}
+    assert "unreachable: core from critic" in props
+
+
+def test_full_example_core_reads_only_privileged_inputs():
+    arch = _full()
+    core = next(set(g.layers) for g in arch.groups if g.name == "core")
+    incoming = {e.source for e in arch.flow if e.target in core} - set(core)
+    assert incoming == {"obs", "soma_in"}
