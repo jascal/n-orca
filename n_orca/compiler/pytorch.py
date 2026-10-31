@@ -85,7 +85,10 @@ def compile_pytorch(arch: Architecture) -> str:
 
     # Ops that return (attn_output, attn_weights) tuple and need special LHS unpack
     # for correct emission (bypass the generic module path).
-    ATTN_TUPLE_OPS = {"MultiHeadAttention", "DualStreamJointAttention"}
+    ATTN_TUPLE_OPS = {
+        "MultiHeadAttention", "DualStreamJointAttention",
+        "HeadGatedGroupedQueryAttention",
+    }
 
     for n in topo:
         ly = arch.layer(n)

@@ -45,6 +45,20 @@ MISTRAL_CONFIG = {**LLAMA_CONFIG, "_name_or_path": "mistralai/Mistral-7B-v0.1",
 QWEN_CONFIG = {**LLAMA_CONFIG, "_name_or_path": "Qwen/Qwen2-7B",
                "model_type": "qwen2", "architectures": ["Qwen2ForCausalLM"]}
 
+LFM3_CONFIG = {
+    "_name_or_path": "LiquidAI/LFM3-1.7B-Base", "model_type": "lfm3",
+    "architectures": ["Lfm3ForCausalLM"], "vocab_size": 128000,
+    "hidden_size": 2048, "intermediate_size": 7680, "num_hidden_layers": 24,
+    "num_attention_heads": 16, "num_key_value_heads": 4, "conv_L_cache": 7,
+    "sliding_window": 256, "max_position_embeddings": 262144,
+    "layer_types": [
+        "conv", "conv", "full_attention", "conv", "sliding_attention", "conv",
+        "full_attention", "conv", "sliding_attention", "conv", "full_attention", "conv",
+        "sliding_attention", "conv", "full_attention", "conv", "sliding_attention", "conv",
+        "full_attention", "conv", "sliding_attention", "conv", "full_attention", "conv",
+    ],
+}
+
 ROBERTA_CONFIG = {**BERT_CONFIG, "_name_or_path": "roberta-base",
                   "model_type": "roberta", "architectures": ["RobertaForMaskedLM"]}
 
@@ -69,6 +83,30 @@ def test_dispatch_llama_family():
     for cfg in (LLAMA_CONFIG, MISTRAL_CONFIG, QWEN_CONFIG):
         a = get_adapter(cfg)
         assert a is not None, f"no adapter for {cfg['model_type']}"
+
+
+def test_lfm3_conversion_preserves_tri_hybrid_schedule():
+    result = convert(LFM3_CONFIG)
+    assert result.report.valid, [e.code for e in result.report.errors]
+    operators = [ly.op.name for ly in result.architecture.layers if ly.op]
+    assert operators.count("GatedCausalShortConv") == 13
+    assert operators.count("HeadGatedGroupedQueryAttention") == 11
+    assert "256-token sliding window" in result.markdown
+    assert "half-head partial RoPE" in result.markdown
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="torch not installed")
+def test_lfm3_generated_pytorch_is_importable_and_shape_compatible():
+    result = convert({**LFM3_CONFIG, "hidden_size": 32, "intermediate_size": 64,
+                      "num_attention_heads": 4, "num_key_value_heads": 1,
+                      "vocab_size": 128})
+    from n_orca.compiler import compile_pytorch
+    ns: dict = {}
+    exec(compile_pytorch(result.architecture), ns)
+    model = ns[result.architecture.name](vocab_size=128, d_model=32, n_heads=4,
+                                         n_kv_heads=1, d_ff=64)
+    import torch
+    assert model(torch.ones(2, 3, dtype=torch.long)).shape == (2, 3, 128)
 
 
 def test_dispatch_roberta_via_bert_adapter():

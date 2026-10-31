@@ -264,6 +264,7 @@ n-orca hf download facebook/vjepa2-vitl-fpc64-256 --config-only --include-proces
 # Convert an HF model -> .n.orca.md (+ optional Mermaid)
 n-orca hf convert gpt2 --out gpt2.n.orca.md --mermaid gpt2.mmd
 n-orca hf convert meta-llama/Llama-2-7b-hf --out llama-7b.n.orca.md
+n-orca hf convert LiquidAI/LFM3-1.7B-Base --out lfm3-1.7b.n.orca.md --mermaid lfm3-1.7b.mmd
 
 # JEPA / V-JEPA 2 / LeWorldModel world models
 n-orca hf convert facebook/vjepa2-vitl-fpc64-256 --out vjepa2.n.orca.md --mermaid vjepa2.mmd
@@ -281,6 +282,7 @@ writes a verified `.n.orca.md`.
 |---------|---------|-------|
 | `Gpt2Adapter` | `gpt2`, `gpt_neo`, `gpt_neox`, `openai-gpt` | Decoder-only, pre-LN, learned positional embeddings |
 | `LlamaFamilyAdapter` | `llama`, `mistral`, `mixtral`, `qwen2`, `qwen3`, `qwen2_moe`, `gemma`, `gemma2`, `phi`, `phi3` | Decoder-only, RMSNorm + RoPE + SwiGLU (approximated in v1) |
+| `Lfm3Adapter` | `lfm3` | Liquid AI's tri-hybrid causal decoder: gated short convolution + sliding/global head-gated GQA, with sandwich norms. Generated PyTorch is topology-only for its custom kernels, masks, RoPE, and gates. |
 | `BertAdapter` | `bert`, `roberta`, `distilbert`, `electra`, `albert` | Encoder-only, post-LN; segment-type embeddings omitted in v1 |
 | `EsmAdapter` | `esm` | ESM-2 protein LM; pre-norm encoder, rotary positions left implicit |
 | `JepaAdapter` | `vjepa2`, `ijepa`, `jepa`, `leworldmodel`, `lewm` (+ `VJEPA2Model` / `IJepaModel` / LeWM Hydra configs) | Joint-embedding **world models**: ViT encoder → predictor. Video tubelet (Conv3d) or image patch (Conv2d) embed; optional action conditioning + projector. Mask tokens, EMA target, SIGReg (latent regularizer) captured as verification rules |
