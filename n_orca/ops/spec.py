@@ -266,6 +266,27 @@ def _mha_params(args, shapes):
     return 4 * d * d + 4 * d
 
 
+def _lfm3_short_conv_params(args, shapes):
+    """LFM3 short-conv: 3d input projection, depthwise kernel, d output."""
+    if len(args) < 2:
+        return 0
+    d, k = _try_int(args[0]), _try_int(args[1])
+    if d is None or k is None:
+        return 0
+    return 4 * d * d + d * k
+
+
+def _lfm3_gqa_params(args, shapes):
+    """Q/O are d-wide; K/V use n_kv_heads / n_heads of the width; plus gate."""
+    if len(args) < 3:
+        return 0
+    d, heads, kv_heads = (_try_int(a) for a in args[:3])
+    if d is None or heads is None or kv_heads is None or not heads:
+        return 0
+    kv_width = d * kv_heads // heads
+    return 2 * d * d + 2 * d * kv_width + d * heads
+
+
 def _dual_joint_infer(args, shapes):
     _require_arity("DualStreamJointAttention", 1, len(shapes))
     return shapes[0]
@@ -531,6 +552,26 @@ _register(OpSpec(
     "MultiHeadAttention", 1,
     infer=_mha_infer, params=_mha_params,
     pytorch_init=_torch_init_mha,
+    pytorch_call=_torch_call_mha,
+))
+_register(OpSpec(
+    "GatedCausalShortConv", 1,
+    infer=_preserve, params=_lfm3_short_conv_params,
+    # The generated module is intentionally topology-only; faithful LFM3
+    # execution needs its packed-sequence cache and custom causal kernels.
+    pytorch_init=lambda a: "nn.Identity()  # LFM3 gated short-conv topology",
+    pytorch_call=_torch_call_module,
+))
+_register(OpSpec(
+    "HeadGatedGroupedQueryAttention", 1,
+    infer=_preserve, params=_lfm3_gqa_params,
+    # This MHA proxy preserves the graph and shape for inspection only. It
+    # deliberately does not reproduce GQA KV grouping, per-head sigmoid gates,
+    # RoPE, or the optional sliding-window causal mask.
+    pytorch_init=lambda a: (
+        f"nn.MultiheadAttention({a[0]}, {a[1]}, batch_first=True)"
+        if len(a) >= 2 else "nn.Identity()"
+    ),
     pytorch_call=_torch_call_mha,
 ))
 _register(OpSpec(
