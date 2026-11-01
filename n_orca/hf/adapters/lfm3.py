@@ -6,6 +6,7 @@ approximations; the two distinctive mixing operators have semantic op names.
 """
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from n_orca.ast import Architecture, FlowEdge, Hyperparameter, Invariant, Layer, OpCall, Tensor
@@ -25,7 +26,17 @@ class Lfm3Adapter(HfAdapter):
         kernel = int(config.get("conv_L_cache", 7))
         window = int(config.get("sliding_window", 256))
         max_pos = int(config.get("max_position_embeddings", 128000))
-        layer_types = list(config.get("layer_types") or _default_types(n_layer))
+        declared_types = config.get("layer_types")
+        if declared_types is None:
+            warnings.warn(
+                "LFM3 config has no layer_types; using the documented default "
+                "tri-hybrid schedule",
+                UserWarning,
+                stacklevel=2,
+            )
+            layer_types = _default_types(n_layer)
+        else:
+            layer_types = list(declared_types)
 
         arch = Architecture(
             name=name or _derive_name(config, n_layer),
@@ -33,7 +44,9 @@ class Lfm3Adapter(HfAdapter):
                 "Liquid AI LFM3 causal tri-hybrid decoder. Each block uses sandwich "
                 "RMSNorm (rendered as LayerNorm), an exact config-ordered gated causal "
                 "short convolution, sliding-window GQA, or global GQA operator, then a "
-                "SwiGLU-like FFN (rendered as FeedForward). Compiler output is topology-only "
+                "SwiGLU-like FFN (rendered as FeedForward). LFM3 ties the token embedding "
+                "and LM head in its checkpoint; n-orca displays them as separate layers and "
+                "does not share their generated PyTorch weights. Compiler output is topology-only "
                 "for LFM3-specific kernels, GQA gates, RoPE, and masks."
             ),
             hyperparameters=[
@@ -52,7 +65,7 @@ class Lfm3Adapter(HfAdapter):
         )
         arch.layers.extend([
             Layer(name="input_ids", is_input=True, description="Token IDs"),
-            Layer(name="tok_embed", description="Tied token embedding", op=OpCall("Embedding", ["vocab_size", "d_model"])),
+            Layer(name="tok_embed", description="Token embedding (tied to LM head in checkpoint; shown separately)", op=OpCall("Embedding", ["vocab_size", "d_model"])),
         ])
         arch.flow.append(FlowEdge("input_ids", "tok_embed", "tokens"))
 
@@ -64,7 +77,7 @@ class Lfm3Adapter(HfAdapter):
 
         arch.layers.extend([
             Layer(name="final_norm", description="Final RMSNorm (rendered as LayerNorm)", op=OpCall("LayerNorm", ["d_model"])),
-            Layer(name="lm_head", description="Tied output projection", op=OpCall("Linear", ["d_model", "vocab_size"])),
+            Layer(name="lm_head", description="LM projection (tied to embedding in checkpoint; shown separately)", op=OpCall("Linear", ["d_model", "vocab_size"])),
             Layer(name="logits", is_output=True),
         ])
         arch.flow.extend([FlowEdge(prev, "final_norm", "h_final"), FlowEdge("final_norm", "lm_head", "normed"), FlowEdge("lm_head", "logits", "logits")])

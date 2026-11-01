@@ -93,6 +93,14 @@ def test_lfm3_conversion_preserves_tri_hybrid_schedule():
     assert operators.count("HeadGatedGroupedQueryAttention") == 11
     assert "256-token sliding window" in result.markdown
     assert "half-head partial RoPE" in result.markdown
+    assert "does not share their generated PyTorch weights" in result.markdown
+
+
+def test_lfm3_missing_layer_types_warns_before_using_default_schedule():
+    config = {key: value for key, value in LFM3_CONFIG.items() if key != "layer_types"}
+    with pytest.warns(UserWarning, match="no layer_types"):
+        result = convert(config)
+    assert result.report.valid, [e.code for e in result.report.errors]
 
 
 @pytest.mark.skipif(not HAS_TORCH, reason="torch not installed")

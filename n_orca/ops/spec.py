@@ -565,8 +565,9 @@ _register(OpSpec(
 _register(OpSpec(
     "HeadGatedGroupedQueryAttention", 1,
     infer=_preserve, params=_lfm3_gqa_params,
-    # MHA preserves the graph/shape for inspection; it does not reproduce GQA,
-    # per-head sigmoid gates, RoPE, or the optional sliding-window mask.
+    # This MHA proxy preserves the graph and shape for inspection only. It
+    # deliberately does not reproduce GQA KV grouping, per-head sigmoid gates,
+    # RoPE, or the optional sliding-window causal mask.
     pytorch_init=lambda a: (
         f"nn.MultiheadAttention({a[0]}, {a[1]}, batch_first=True)"
         if len(a) >= 2 else "nn.Identity()"
