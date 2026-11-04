@@ -31,8 +31,8 @@ Architecture: DeepWorldModel
 ### examples/econ-temporal-world-model.n.orca.md
 Architecture: TemporalWorldModel
   Result: VALID
-  Parameters: 76,247
-  Depth: 10
+  Parameters: 146,519
+  Depth: 11
 
 ### examples/econ-world-model.n.orca.md
 Architecture: WorldModel

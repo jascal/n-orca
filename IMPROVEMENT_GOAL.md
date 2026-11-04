@@ -32,13 +32,8 @@ Unfinished tasks from changes archived on 2026-11-03. Each is small enough for
 one improvement cycle unless marked *new change*.
 
 From `add-temporal-world-model`:
-- **Real GRU cell** for `temporal_world_model` — `hidden_update` is a linear
-  placeholder; add a recurrent-cell op with shape inference + PyTorch emission
-  and keep `forward(x, hidden_in) -> (y, hidden_out)`. *new change*
 - Note for econ-sae that the n-orca `.n.orca.md` is the spec it should consume.
 - Regenerate sibling docs if `scripts/generate_sibling_docs.py` covers world models.
-- Add an MCP test for `build_world_model(variant="temporal")` (none exists; the
-  `'gru_hidden' in locals()` guard in `mcp_server.py` is always true and can go).
 
 From `add-cosmos-mot-world-models`:
 - `DualStreamJointAttention` is topology-only: implement AR+DM K/V concat and the
@@ -69,6 +64,11 @@ This goal is intended to be driven by recurring schedulers, background sub-agent
 
 Last updated: 2026-07-29 (added verifier Stage 6 — topology property checking — via OpenSpec change `add-topology-properties`; 231 passed / 7 skipped; all pre-existing examples byte-identical).
 ## Recent Activity
+
+**2026-11-03 (OpenSpec change `add-gru-cell-temporal-world-model`)**:
+- New `GRUCell(input_size, hidden_size)` op: inputs `(x, h)` in flow-row order, last dims matched against the args by name (catches swapped rows), exact `nn.GRUCell` parameter count, emission flattens leading dims.
+- `temporal_world_model` now matches one period of econ-sae's `TemporalWorldModel`: `ln → gru → fc1`, with the GRU output also `hidden_out`. Previously the state path was a standalone `Linear` that never saw the input or reached the head. Default params 76,247 → 146,519; signature and forward I/O unchanged.
+- Added the MCP temporal test and removed the always-true `locals()` guard. Regenerated the example and only its baseline entries.
 
 **2026-11-03 (OpenSpec close-out: four changes archived)**:
 - Archived `add-dory-looped-architecture` (PR #19) and `add-lfm3-hybrid-architecture` (PR #20): all tasks complete.

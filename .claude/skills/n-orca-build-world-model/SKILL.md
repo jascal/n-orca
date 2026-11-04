@@ -11,7 +11,7 @@ Variants:
 - baseline (2-hidden MLP)
 - deep (more layers)
 - attn (adds per-agent / per-position MultiHeadAttention before the MLP)
-- temporal (attn + explicit hidden state carry across periods for regime/windowed features)
+- temporal (attn → GRUCell state update → MLP; hidden_in/hidden_out carried across periods, so h1 holds regime/windowed context)
 - mot (MoT dual-tower + joint attn + timestep for diffusion/multimodal like Cosmos 3)
 - mot_reasoner (MoT AR causal reasoner only / "reasons first" tower)
 

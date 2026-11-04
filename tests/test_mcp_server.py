@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -140,3 +141,24 @@ def test_build_world_model_mot_with_timestep_dim():
     assert "error" not in data, data.get("error")
     assert data["report"]["valid"] is True
     assert data["architecture_name"] == "MoTDenoiseStep"
+
+
+def test_build_world_model_temporal_passes_gru_hidden():
+    """MCP temporal variant (add-gru-cell-temporal-world-model): gru_hidden reaches the builder."""
+    async def _go(session):
+        result = await session.call_tool("build_world_model", {
+            "variant": "temporal",
+            "embed_dim": 16,
+            "n_heads": 2,
+            "gru_hidden": 32,
+            "h1_dim": 32,
+            "h2_dim": 16,
+        })
+        return json.loads(result.content[0].text)
+
+    data = _run(_with_session(_go))
+    assert "error" not in data, data.get("error")
+    assert data["report"]["valid"] is True
+    assert data["architecture_name"] == "TemporalWorldModel"
+    assert re.search(r"\|\s*gru_hidden\s*\|\s*int\s*\|\s*32\s*\|", data["markdown"])
+    assert "GRUCell(embed_dim, gru_hidden)" in data["markdown"]

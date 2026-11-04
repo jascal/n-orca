@@ -1,6 +1,6 @@
 # architecture TemporalWorldModel
 
-> Temporal world-model (per-period attn + state carry, gru_hidden=128). Extends attn_world_model with explicit hidden state tensors for cross-period context (enables regime/windowed feature recovery per econ-sae). h1 is the SAE substrate. Caller manages unrolling/carrying hidden across T periods.
+> Temporal world-model: one period of econ-sae's TemporalWorldModel (per-period cross-agent attn -> GRU state update, gru_hidden=128 -> MLP head). The GRU output is both the new state (hidden_out) and the head's input, so h1, the SAE substrate, carries cross-period (regime) context. Caller carries hidden_out back in as hidden_in across T periods.
 
 ## hyperparameters
 
@@ -39,11 +39,15 @@
 ## layer ln
 - op: LayerNorm(embed_dim)
 
+## layer gru
+> GRU state update: (period features, hidden_in) -> new hidden
+- op: GRUCell(embed_dim, gru_hidden)
+
 ## layer fc1
-- op: Linear(embed_dim, h1_dim)
+- op: Linear(gru_hidden, h1_dim)
 
 ## layer act1
-> ReLU on H1 — SAE substrate (post temporal context)
+> ReLU on H1 — SAE substrate (post-GRU, carries temporal context)
 - op: ReLU()
 
 ## layer fc2
@@ -57,25 +61,23 @@
 
 ## layer y [output]
 
-## layer hidden_update
-- op: Linear(gru_hidden, gru_hidden)
-
 ## layer hidden_out [output]
 
 ## flow
 
-| Source        | Target        | Tensor   |
-|---------------|---------------|----------|
-| x             | embed         | x        |
-| embed         | attn          | tokens   |
-| attn          | add_attn      | attn_out |
-| embed         | add_attn      | tok_skip |
-| add_attn      | ln            | r        |
-| ln            | fc1           | r_n      |
-| fc1           | act1          | z1       |
-| act1          | fc2           | h1       |
-| fc2           | act2          | z2       |
-| act2          | head          | h2       |
-| head          | y             | y_hat    |
-| hidden_in     | hidden_update | h_in     |
-| hidden_update | hidden_out    | h_out    |
+| Source    | Target     | Tensor   |
+|-----------|------------|----------|
+| x         | embed      | x        |
+| embed     | attn       | tokens   |
+| attn      | add_attn   | attn_out |
+| embed     | add_attn   | tok_skip |
+| add_attn  | ln         | r        |
+| ln        | gru        | r_n      |
+| hidden_in | gru        | h_in     |
+| gru       | fc1        | h_new    |
+| fc1       | act1       | z1       |
+| act1      | fc2        | h1       |
+| fc2       | act2       | z2       |
+| act2      | head       | h2       |
+| head      | y          | y_hat    |
+| gru       | hidden_out | h_out    |

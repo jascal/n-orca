@@ -199,6 +199,39 @@ def test_temporal_world_model_has_state_tensors():
     assert "MultiHeadAttention" in ops
 
 
+def test_temporal_world_model_gru_sits_between_attention_and_head():
+    """econ-sae topology: ln -> GRU -> fc1, with the GRU output also the new state."""
+    arch = world_models.temporal_world_model()
+    rep = verify(arch)
+    assert rep.valid, [e.code for e in rep.errors]
+    assert arch.layer("hidden_update") is None
+    gru = arch.layer("gru")
+    assert gru.op.name == "GRUCell"
+    assert gru.op.args == ["embed_dim", "gru_hidden"]
+    # Inputs in flow-row order: x path first, then the carried state.
+    assert [e.source for e in arch.flow if e.target == "gru"] == ["ln", "hidden_in"]
+    assert {e.target for e in arch.flow if e.source == "gru"} == {"fc1", "hidden_out"}
+    assert arch.layer("fc1").op.args == ["gru_hidden", "h1_dim"]
+    assert rep.param_count == 146_519
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="torch not installed")
+def test_temporal_world_model_state_reaches_prediction():
+    import torch
+
+    arch = world_models.temporal_world_model()
+    ns: dict = {}
+    exec(compile_pytorch(arch), ns)  # noqa: S102 — our own generated module
+    torch.manual_seed(0)
+    model = ns[arch.name]()
+    x = torch.randn(2, 5, 43)
+    y_a, h_a = model(x, torch.zeros(2, 5, 128))
+    y_b, h_b = model(x, torch.randn(2, 5, 128))
+    assert y_a.shape == (2, 5, 23) and h_a.shape == (2, 5, 128)
+    assert not torch.allclose(y_a, y_b)
+    assert not torch.allclose(h_a, h_b)
+
+
 def test_mot_denoise_step_has_dual_streams_and_timestep():
     arch = world_models.mot_denoise_step(d_model=32, n_heads=2, timestep_dim=8, h1_dim=16, h2_dim=8)
     rep = verify(arch)
