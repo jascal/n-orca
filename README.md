@@ -228,7 +228,7 @@ group-quantification rules.
 | `Embedding(n, d)` | `nn.Embedding` | token / position embeddings |
 | `PatchEmbed(c, d, p)` | `nn.Conv2d` + flatten + transpose | image → patch-token sequence (ViT / I-JEPA) |
 | `TubeletEmbed(c, d, t, p)` | `nn.Conv3d` + flatten + transpose | video clip → tubelet-token sequence (V-JEPA 2) |
-| `MultiHeadAttention(d, h, dropout)` | `nn.MultiheadAttention` (batch-first) | self-attention |
+| `MultiHeadAttention(d, h, dropout[, causal])` | `nn.MultiheadAttention` (batch-first) | self-attention; the literal 4th arg `causal` adds a causal mask |
 | `FeedForward(d, d_ff, dropout)` | `nn.Sequential(Linear, GELU, Dropout, Linear, Dropout)` | transformer FFN |
 | `GRUCell(in, hidden)` | `nn.GRUCell` over flattened leading dims | one recurrent step; inputs `(x, h)` in `## flow` row order |
 | `Add`, `Mul` | functional `+` / `*` | residual / gated paths |
@@ -420,7 +420,7 @@ World models (SAE training substrates, H1 activations are the target):
 - `deep_world_model`
 - `attn_world_model` (per-agent / per-position MultiHeadAttention + residual + LN before the MLP — the biggest single lift for conjunctive features in econ-sae)
 - `temporal_world_model` (one period of econ-sae's `TemporalWorldModel`: per-period attn → `GRUCell` state update → MLP head, with `hidden_in`/`hidden_out` carried by the caller; h1 is post-GRU so it carries cross-period regime context. The GRU replaced a linear placeholder in `add-gru-cell-temporal-world-model`, which changed the generated graph and parameter count)
-- `mot_denoise_step` (MoT dual-tower AR-reasoner + DM-generator + timestep for Cosmos 3-style diffusion/multimodal world models; enables richer physics/conjunctive/diffusion-stage SAE GT; see OpenSpec add-cosmos-mot-world-models + subagent report)
+- `mot_denoise_step` (MoT dual-tower AR-reasoner + DM-generator for Cosmos 3-style diffusion/multimodal world models: causal AR attention, DM joint attention over concat(AR, DM), and verifier-checked MoT invariants such as no DM → AR path; the timestep embedding is not yet injected into DM; enables richer physics/conjunctive/diffusion-stage SAE GT; see OpenSpec add-cosmos-mot-world-models and add-mot-joint-attention-masks)
 
 SAE variants (all verify + compile to PyTorch/Mermaid):
 - `topk_sae`, `l1_sae`, `jumprelu_sae` (classic families)

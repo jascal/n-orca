@@ -25,6 +25,8 @@ from n_orca.ast import (
     FlowEdge,
     OpCall,
     Invariant,
+    Group,
+    Property,
 )
 
 
@@ -331,21 +333,29 @@ def mot_denoise_step(
 
     Mirrors Cosmos 3 dual-tower (independent LN/MLP per stream; shared joint attn per subagent report).
     Per-step DAG (external loop over diffusion schedule, like temporal hidden carry).
-    AR causal self-attn only; DM attends concat(AR,DM) for conditioning.
-    Timestep injected to DM path via dedicated TimestepEmbed (learned Linear for toy; sinusoid in full DiT).
-    Uses Linear, LayerNorm, MultiHeadAttention (AR causal), DualStreamJointAttention (DM joint path over AR+DM; placeholder impl modeled on MHA with nn.MultiheadAttention for now), Add, ReLU + the TimestepEmbed op. Full concat/mask special-case (causal_AR vs bidirectional_DM) planned for compiler follow-up per design OpenQs.
+    MoT runs one global attention over concat(AR, DM) with a mask: AR rows are causal over AR
+    only, DM rows see everything. That decomposes exactly into the two towers here:
+    - AR: `MultiHeadAttention(..., causal)`, i.e. causal self-attention over AR.
+    - DM: `DualStreamJointAttention` with inputs (dm_ln, ar_ln): DM queries attend, unmasked,
+      over concat(AR, DM) keys/values.
+    No DM -> AR path exists; that and the other MoT invariants are declared as `## properties`
+    and checked by the verifier.
+    Known approximation: `dm_mha` projects the AR keys/values with the DM tower's K/V weights;
+    real MoT uses the AR tower's. Parameter totals are unaffected (one Q/K/V/O set per tower).
+    The timestep embedding is computed but not yet injected into the DM path (ts_embed -> ts_out);
+    that needs a broadcast add / adaLN op and is tracked as a follow-up.
     Toy dims for verification; real via HF/diffusers in consumers.
-
-    Tensors use (B, S_ar + S_dm, d_model) conceptually; here split for clarity.
     """
-    # AR uses MHA (causal); DM uses DualStreamJointAttention (for joint over AR+DM + mask); TimestepEmbed for ts. Full special-case impl in compiler for 2.2 per design.
     arch = Architecture(
         name=name,
         description=(
             f"Cosmos 3-style MoT single denoise step (AR reasoner + DM generator). "
             f"d_model={d_model}, n_heads={n_heads}. "
-            "AR: causal self-attn only (reason first). "
-            "DM: bidirectional joint over AR+DM + timestep cond (generate). "
+            "AR: causal self-attn over AR only (reason first). "
+            "DM: bidirectional joint attn, DM queries over concat(AR, DM) keys/values (generate). "
+            "No DM -> AR path (checked in ## properties). AR keys/values for the DM tower use the "
+            "DM tower's K/V weights (real MoT: AR tower's). Timestep embedding is not yet injected "
+            "into DM. "
             "External loop for full T steps (like temporal state carry). "
             "See OpenSpec add-cosmos-mot-world-models + subagent report."
         ),
@@ -371,18 +381,17 @@ def mot_denoise_step(
 
     # AR reasoner path (causal only)
     arch.layers.append(Layer(name="ar_ln", op=OpCall("LayerNorm", ["d_model"])))
-    arch.layers.append(Layer(name="ar_mha", op=OpCall("MultiHeadAttention", ["d_model", "n_heads", "0.0"]),
-                              description="AR causal self-attn (reasoning)"))
+    arch.layers.append(Layer(name="ar_mha", op=OpCall("MultiHeadAttention", ["d_model", "n_heads", "0.0", "causal"]),
+                              description="AR causal self-attn over AR only (reasoning)"))
     arch.layers.append(Layer(name="ar_add", op=OpCall("Add", [])))
     arch.layers.append(Layer(name="ar_out", is_output=True, description="AR output (reasoning result)"))
 
-    # DM generator path + timestep + joint (joint via concat in full impl; here DM self + cross note)
+    # DM generator path + timestep
     arch.layers.append(Layer(name="ts_embed", op=OpCall("TimestepEmbed", ["timestep_dim", "d_model"]),
-                              description="Timestep projection (sinusoidal in DiT; dedicated TimestepEmbed op (learned Linear for toy; see 2.2 OpenSpec)"))
+                              description="Timestep projection (sinusoidal in DiT; learned Linear for toy). Not yet injected into DM"))
     arch.layers.append(Layer(name="dm_ln", op=OpCall("LayerNorm", ["d_model"])))
     arch.layers.append(Layer(name="dm_mha", op=OpCall("DualStreamJointAttention", ["d_model", "n_heads", "0.0"]),
-                              description="DM joint attn (bidir over AR+DM in full MoT; uses DualStreamJointAttention op with concat/mask special-case planned)"))
-    # layer name kept as dm_mha for now (to avoid flow/ex churn in this skeleton slice); the op= is the source of truth
+                              description="DM joint attn: DM queries over concat(AR, DM) keys/values, unmasked"))
     arch.layers.append(Layer(name="dm_add", op=OpCall("Add", [])))
     arch.layers.append(Layer(name="dm_fc1", op=OpCall("Linear", ["d_model", "h1_dim"])))
     arch.layers.append(Layer(name="dm_act1", op=OpCall("ReLU", [])))
@@ -392,7 +401,7 @@ def mot_denoise_step(
     arch.layers.append(Layer(name="dm_x_denoised", is_output=True))
     arch.layers.append(Layer(name="ts_out", is_output=True, description="timestep cond output (injected in forward)"))
 
-    # Flows (AR causal self; DM + ts + joint note in doc)
+    # Flows. dm_mha takes (dm, ar) in row order: `dm_ln -> dm_mha` must precede `ar_ln -> dm_mha`.
     arch.flow.extend([
         # AR path (with residual skip like attn)
         FlowEdge("ar_x", "ar_ln", "ar"),
@@ -400,10 +409,11 @@ def mot_denoise_step(
         FlowEdge("ar_mha", "ar_add", "ar_a"),
         FlowEdge("ar_ln", "ar_add", "ar_skip"),  # residual
         FlowEdge("ar_add", "ar_out", "ar_out"),
-        # DM + ts (ts added to dm path; joint note)
+        # DM + ts
         FlowEdge("t", "ts_embed", "ts"),
         FlowEdge("dm_x_noisy", "dm_ln", "dm"),
         FlowEdge("dm_ln", "dm_mha", "dm_tok"),
+        FlowEdge("ar_ln", "dm_mha", "ar_kv"),  # joint: AR keys/values for DM queries
         FlowEdge("dm_mha", "dm_add", "dm_a"),
         FlowEdge("dm_ln", "dm_add", "dm_skip"),  # residual
         # DM MLP
@@ -416,8 +426,23 @@ def mot_denoise_step(
         FlowEdge("ts_embed", "ts_out", "ts_out"),
     ])
 
-    # Note: no single output_shape invariant (dual paths, main DM out)
-    # AR causal integrity + DM joint cond documented in description.
+    # Note: no single output_shape invariant (dual paths, main DM out).
+    arch.groups.extend([
+        Group("ar_tower", ["ar_ln", "ar_mha", "ar_add"]),
+        Group("dm_tower", ["ts_embed", "dm_ln", "dm_mha", "dm_add", "dm_fc1", "dm_act1",
+                           "dm_fc2", "dm_act2", "dm_head"]),
+    ])
+    # MoT invariants, checked by verifier Stage 6.
+    arch.properties.extend([
+        Property(kind="unreachable", target="ar_out", source="dm_x_noisy",
+                 raw="unreachable: ar_out from dm_x_noisy"),
+        Property(kind="unreachable", target="ar_out", source="t",
+                 raw="unreachable: ar_out from t"),
+        Property(kind="reachable", target="dm_x_denoised", source="ar_x",
+                 raw="reachable: dm_x_denoised from ar_x"),
+        Property(kind="passes_through", through="dm_mha", source="ar_x", target="dm_x_denoised",
+                 raw="passes_through: dm_mha for ar_x -> dm_x_denoised"),
+    ])
     return arch
 
 
@@ -455,8 +480,8 @@ def mot_reasoner_only(
 
     # AR reasoner path (causal only)
     arch.layers.append(Layer(name="ar_ln", op=OpCall("LayerNorm", ["d_model"])))
-    arch.layers.append(Layer(name="ar_mha", op=OpCall("MultiHeadAttention", ["d_model", "n_heads", "0.0"]),
-                              description="AR causal self-attn (reasoning)"))
+    arch.layers.append(Layer(name="ar_mha", op=OpCall("MultiHeadAttention", ["d_model", "n_heads", "0.0", "causal"]),
+                              description="AR causal self-attn over AR only (reasoning)"))
     arch.layers.append(Layer(name="ar_add", op=OpCall("Add", [])))
     arch.layers.append(Layer(name="ar_out", is_output=True, description="AR output (reasoning result)"))
 

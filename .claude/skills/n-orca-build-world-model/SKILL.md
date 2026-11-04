@@ -12,8 +12,8 @@ Variants:
 - deep (more layers)
 - attn (adds per-agent / per-position MultiHeadAttention before the MLP)
 - temporal (attn → GRUCell state update → MLP; hidden_in/hidden_out carried across periods, so h1 holds regime/windowed context)
-- mot (MoT dual-tower + joint attn + timestep for diffusion/multimodal like Cosmos 3)
-- mot_reasoner (MoT AR causal reasoner only / "reasons first" tower)
+- mot (MoT dual-tower: causal AR attn + DM joint attn over concat(AR, DM); no DM→AR path, checked in `## properties`; timestep for diffusion/multimodal like Cosmos 3)
+- mot_reasoner (MoT AR causal reasoner only / "reasons first" tower, causal-masked)
 
 Example: /n-orca-build-world-model attn --h1_dim 96
 Example: /n-orca-build-world-model temporal --gru_hidden 128

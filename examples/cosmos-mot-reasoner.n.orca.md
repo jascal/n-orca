@@ -23,8 +23,8 @@
 - op: LayerNorm(d_model)
 
 ## layer ar_mha
-> AR causal self-attn (reasoning)
-- op: MultiHeadAttention(d_model, n_heads, 0.0)
+> AR causal self-attn over AR only (reasoning)
+- op: MultiHeadAttention(d_model, n_heads, 0.0, causal)
 
 ## layer ar_add
 - op: Add()

@@ -4,12 +4,6 @@ Architecture: ConvClassifier
   Parameters: 20,042
   Depth: 10
 
-### examples/cosmos-mot-denoise-step.n.orca.md
-Architecture: MoTDenoiseStep
-  Result: VALID
-  Parameters: 62,528
-  Depth: 9
-
 ### examples/cosmos-mot-reasoner.n.orca.md
 Architecture: MoTReasonerOnly
   Result: VALID

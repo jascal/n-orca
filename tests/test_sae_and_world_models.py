@@ -254,6 +254,57 @@ def test_mot_denoise_step_has_dual_streams_and_timestep():
     assert t_tensor.shape == ("B", "timestep_dim")
 
 
+MOT_PROPERTIES = [
+    "unreachable: ar_out from dm_x_noisy",
+    "unreachable: ar_out from t",
+    "reachable: dm_x_denoised from ar_x",
+    "passes_through: dm_mha for ar_x -> dm_x_denoised",
+]
+
+
+def test_mot_denoise_step_wires_joint_attention_and_checks_invariants():
+    """add-mot-joint-attention-masks: AR feeds DM joint attn; MoT invariants are verified."""
+    before = 4 * 64 * 64 + 4 * 64  # each tower's attention: one Q/K/V/O set
+    arch = world_models.mot_denoise_step()
+    rep = verify(arch)
+    assert rep.valid, [e.code for e in rep.errors]
+    # dm first, then ar (DualStreamJointAttention takes (dm, ar) in flow-row order)
+    assert [e.source for e in arch.flow if e.target == "dm_mha"] == ["dm_ln", "ar_ln"]
+    assert arch.layer("ar_mha").op.args[-1] == "causal"
+    assert {g.name for g in arch.groups} == {"ar_tower", "dm_tower"}
+    assert [p.raw for p in rep.properties] == MOT_PROPERTIES
+    assert all(p.passed for p in rep.properties), [p.raw for p in rep.properties if not p.passed]
+    # No weights added or removed by this change (62,528 at the defaults on main).
+    assert rep.param_count == 62_528
+    assert get_op("DualStreamJointAttention").params(["64", "4", "0.0"], []) == before
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="torch not installed")
+def test_mot_denoise_step_masks_hold_numerically():
+    import torch
+
+    arch = world_models.mot_denoise_step()
+    ns: dict = {}
+    exec(compile_pytorch(arch), ns)  # noqa: S102 — our own generated module
+    torch.manual_seed(0)
+    m = ns[arch.name]().eval()
+    ar, dm, t = torch.randn(2, 5, 64), torch.randn(2, 4, 64), torch.randn(2, 128)
+    ar_out, dm_out, _ = m(ar, dm, t)
+
+    # (a) AR is causal: perturbing AR position 3 leaves positions 0..2 unchanged.
+    ar2 = ar.clone()
+    ar2[:, 3] += torch.randn_like(ar2[:, 3])  # random: LayerNorm erases a constant shift
+    ar_out_a, dm_out_a, _ = m(ar2, dm, t)
+    assert torch.allclose(ar_out[:, :3], ar_out_a[:, :3], atol=1e-6)
+    assert not torch.allclose(ar_out[:, 3], ar_out_a[:, 3])
+    # (c) DM is conditioned on AR.
+    assert not torch.allclose(dm_out, dm_out_a)
+    # (b) No DM -> AR backflow.
+    ar_out_b, dm_out_b, _ = m(ar, torch.randn(2, 4, 64), t)
+    assert torch.allclose(ar_out, ar_out_b, atol=1e-6)
+    assert not torch.allclose(dm_out, dm_out_b)
+
+
 def test_mot_reasoner_only_has_ar_path():
     """Test for cosmos 3.2 / mot_reasoner variant (AR causal only tower)."""
     arch = world_models.mot_reasoner_only(d_model=32, n_heads=2)
@@ -393,3 +444,23 @@ def test_attn_world_model_forward_handles_3d_input():
     # (B=2, N_agents=17, input_dim=8)
     y = model(torch.randn(2, 17, 8))
     assert y.shape == (2, 17, 4)
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="torch not installed")
+def test_mot_reasoner_only_is_causal():
+    import torch
+
+    arch = world_models.mot_reasoner_only()
+    rep = verify(arch)
+    assert rep.valid, [e.code for e in rep.errors]
+    assert rep.param_count == 16_768  # unchanged by add-mot-joint-attention-masks
+    ns: dict = {}
+    exec(compile_pytorch(arch), ns)  # noqa: S102 — our own generated module
+    torch.manual_seed(0)
+    m = ns[arch.name]().eval()
+    ar = torch.randn(2, 5, 64)
+    ar2 = ar.clone()
+    ar2[:, 3] += torch.randn_like(ar2[:, 3])  # random: LayerNorm erases a constant shift
+    y, y2 = m(ar), m(ar2)
+    assert torch.allclose(y[:, :3], y2[:, :3], atol=1e-6)
+    assert not torch.allclose(y[:, 3], y2[:, 3])

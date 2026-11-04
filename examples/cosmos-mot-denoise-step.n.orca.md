@@ -1,6 +1,6 @@
 # architecture MoTDenoiseStep
 
-> Cosmos 3-style MoT single denoise step (AR reasoner + DM generator). d_model=64, n_heads=4. AR: causal self-attn only (reason first). DM: bidirectional joint over AR+DM + timestep cond (generate). External loop for full T steps (like temporal state carry). See OpenSpec add-cosmos-mot-world-models + subagent report.
+> Cosmos 3-style MoT single denoise step (AR reasoner + DM generator). d_model=64, n_heads=4. AR: causal self-attn over AR only (reason first). DM: bidirectional joint attn, DM queries over concat(AR, DM) keys/values (generate). No DM -> AR path (checked in ## properties). AR keys/values for the DM tower use the DM tower's K/V weights (real MoT: AR tower's). Timestep embedding is not yet injected into DM. External loop for full T steps (like temporal state carry). See OpenSpec add-cosmos-mot-world-models + subagent report.
 
 ## hyperparameters
 
@@ -36,8 +36,8 @@
 - op: LayerNorm(d_model)
 
 ## layer ar_mha
-> AR causal self-attn (reasoning)
-- op: MultiHeadAttention(d_model, n_heads, 0.0)
+> AR causal self-attn over AR only (reasoning)
+- op: MultiHeadAttention(d_model, n_heads, 0.0, causal)
 
 ## layer ar_add
 - op: Add()
@@ -46,14 +46,14 @@
 > AR output (reasoning result)
 
 ## layer ts_embed
-> Timestep projection (sinusoidal in DiT; dedicated TimestepEmbed op (learned Linear for toy; see 2.2 OpenSpec)
+> Timestep projection (sinusoidal in DiT; learned Linear for toy). Not yet injected into DM
 - op: TimestepEmbed(timestep_dim, d_model)
 
 ## layer dm_ln
 - op: LayerNorm(d_model)
 
 ## layer dm_mha
-> DM joint attn (bidir over AR+DM in full MoT; uses DualStreamJointAttention op with concat/mask special-case planned)
+> DM joint attn: DM queries over concat(AR, DM) keys/values, unmasked
 - op: DualStreamJointAttention(d_model, n_heads, 0.0)
 
 ## layer dm_add
@@ -91,6 +91,7 @@
 | t          | ts_embed      | ts       |
 | dm_x_noisy | dm_ln         | dm       |
 | dm_ln      | dm_mha        | dm_tok   |
+| ar_ln      | dm_mha        | ar_kv    |
 | dm_mha     | dm_add        | dm_a     |
 | dm_ln      | dm_add        | dm_skip  |
 | dm_add     | dm_fc1        | d_r      |
@@ -100,3 +101,16 @@
 | dm_act2    | dm_head       | d_h2     |
 | dm_head    | dm_x_denoised | denoised |
 | ts_embed   | ts_out        | ts_out   |
+
+## groups
+
+| Name     | Layers                                                                     |
+|----------|----------------------------------------------------------------------------|
+| ar_tower | ar_ln, ar_mha, ar_add                                                      |
+| dm_tower | ts_embed, dm_ln, dm_mha, dm_add, dm_fc1, dm_act1, dm_fc2, dm_act2, dm_head |
+
+## properties
+- unreachable: ar_out from dm_x_noisy
+- unreachable: ar_out from t
+- reachable: dm_x_denoised from ar_x
+- passes_through: dm_mha for ar_x -> dm_x_denoised

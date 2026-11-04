@@ -58,16 +58,30 @@ def test_timestep_embed_requires_exactly_one_input():
     assert "op 'TimestepEmbed' expects 1 input(s), got 2" in str(exc.value)
 
 
-def test_dual_joint_preserves_shape_and_params():
-    """Basic coverage for DualStreamJointAttention (placeholder modeled on MHA)."""
+def test_dual_joint_takes_dm_then_ar_and_preserves_dm_shape():
+    """DualStreamJointAttention: (dm, ar) in flow-row order; output has dm's shape."""
     spec = get_op("DualStreamJointAttention")
-    out = spec.infer(["64", "8", "0.1"], [("B", "S", "64")])
-    assert out == ("B", "S", "64")
-    # MHA-like param count: 4*d*d + 4*d (Q/K/V/O projections + biases)
+    assert spec.arity == 2
+    out = spec.infer(["64", "8", "0.1"], [("B", "S_dm", "64"), ("B", "S_ar", "64")])
+    assert out == ("B", "S_dm", "64")
+    # MHA-like param count: 4*d*d + 4*d (one Q/K/V/O set for the DM tower)
     assert spec.params(["64", "8", "0.0"], []) == 4 * 64 * 64 + 4 * 64
     # Distinct from MHA spec
     mha_spec = get_op("MultiHeadAttention")
     assert spec is not mha_spec
+
+
+def test_dual_joint_rejects_one_input():
+    with pytest.raises(ShapeRuleError, match="expects 2"):
+        get_op("DualStreamJointAttention").infer(["64", "8", "0.0"], [("B", "S", "64")])
+
+
+def test_dual_joint_rejects_mismatched_feature_or_batch_dim():
+    spec = get_op("DualStreamJointAttention")
+    with pytest.raises(ShapeRuleError, match="feature"):
+        spec.infer(["64", "8", "0.0"], [("B", "S_dm", "64"), ("B", "S_ar", "32")])
+    with pytest.raises(ShapeRuleError, match="batch"):
+        spec.infer(["64", "8", "0.0"], [("B", "S_dm", "64"), ("C", "S_ar", "64")])
 
 
 def test_timestep_embed_rejects_mismatched_input_dim():
@@ -262,3 +276,78 @@ def test_gru_cell_emission_matches_rowwise_grucell():
     assert out.shape == (2, 5, 32)
     ref = m.gru(x.reshape(10, 16), h.reshape(10, 32)).reshape(2, 5, 32)
     assert torch.allclose(out, ref)
+
+
+# --------------------------------------------------------------------------- #
+#  Causal MultiHeadAttention + two-input DualStreamJointAttention
+#  (add-mot-joint-attention-masks)
+# --------------------------------------------------------------------------- #
+
+
+def _attn_module(op_args, n_inputs=1):
+    """Compile a minimal graph around one attention layer; return (module, input names)."""
+    from n_orca.ast import Architecture, FlowEdge, Hyperparameter, Layer, OpCall, Tensor
+    from n_orca.compiler import compile_pytorch
+    from n_orca.verifier import verify
+
+    ins = ["dm", "ar"][:n_inputs] if n_inputs == 2 else ["x"]
+    seqs = {"x": "S", "dm": "S_dm", "ar": "S_ar"}
+    arch = Architecture(
+        name="AttnProbe",
+        hyperparameters=[Hyperparameter("d", "int", 8), Hyperparameter("h", "int", 2)],
+        tensors=[Tensor(n, ("B", seqs[n], "d"), "float32") for n in ins]
+        + [Tensor("y", ("B", seqs[ins[0]], "d"), "float32")],
+    )
+    arch.layers += [Layer(n, is_input=True) for n in ins]
+    op = "DualStreamJointAttention" if n_inputs == 2 else "MultiHeadAttention"
+    arch.layers += [Layer("attn", op=OpCall(op, op_args)), Layer("y", is_output=True)]
+    arch.flow += [FlowEdge(n, "attn", f"{n}_e") for n in ins] + [FlowEdge("attn", "y", "out")]
+    rep = verify(arch)
+    assert rep.valid, [e.code for e in rep.errors]
+    ns: dict = {}
+    exec(compile_pytorch(arch), ns)  # noqa: S102 — our own generated module
+    return ns["AttnProbe"]().eval()
+
+
+def test_mha_causal_masks_later_positions():
+    torch = pytest.importorskip("torch")
+    torch.manual_seed(0)
+    m = _attn_module(["d", "h", "0.0", "causal"])
+    x = torch.randn(2, 6, 8)
+    x2 = x.clone()
+    x2[:, 4] += torch.randn_like(x2[:, 4])
+    y, y2 = m(x), m(x2)
+    assert torch.allclose(y[:, :4], y2[:, :4], atol=1e-6)
+    assert not torch.allclose(y[:, 4], y2[:, 4])
+
+
+def test_mha_three_args_still_unmasked():
+    torch = pytest.importorskip("torch")
+    torch.manual_seed(0)
+    m = _attn_module(["d", "h", "0.0"])
+    x = torch.randn(2, 6, 8)
+    x2 = x.clone()
+    x2[:, 4] += torch.randn_like(x2[:, 4])
+    assert not torch.allclose(m(x)[:, :4], m(x2)[:, :4])
+
+
+def test_mha_causal_arg_does_not_change_shape_or_params():
+    spec = get_op("MultiHeadAttention")
+    assert spec.infer(["8", "2", "0.0", "causal"], [("B", "S", "8")]) == ("B", "S", "8")
+    assert spec.params(["8", "2", "0.0", "causal"], []) == spec.params(["8", "2", "0.0"], [])
+
+
+def test_dual_joint_output_depends_on_ar():
+    torch = pytest.importorskip("torch")
+    torch.manual_seed(0)
+    m = _attn_module(["d", "h", "0.0"], n_inputs=2)
+    dm = torch.randn(2, 4, 8)
+    y_a = m(dm, torch.randn(2, 3, 8))
+    y_b = m(dm, torch.randn(2, 3, 8))
+    assert y_a.shape == (2, 4, 8)
+    assert not torch.allclose(y_a, y_b)
+
+
+def test_dual_joint_emission_explains_missing_ar_input():
+    with pytest.raises(ShapeRuleError, match="2 inputs"):
+        get_op("DualStreamJointAttention").pytorch_call(["d", "h", "0.0"], ["dm"])

@@ -348,8 +348,24 @@ def _torch_call_gru_cell(args: list[str], inputs: list[str]) -> str:
 
 
 def _dual_joint_infer(args, shapes):
-    _require_arity("DualStreamJointAttention", 1, len(shapes))
-    return shapes[0]
+    """DualStreamJointAttention: inputs (dm, ar) in flow-row order.
+
+    DM queries attend, unmasked, over concat(ar, dm) along the sequence axis,
+    so the sequence lengths may differ; batch and feature dims must match.
+    Both inputs end in d_model, so a swapped flow order cannot be detected by
+    shape -- list the DM edge first.
+    """
+    _require_arity("DualStreamJointAttention", 2, len(shapes))
+    dm, ar = shapes
+    if len(dm) != 3 or len(ar) != 3:
+        raise ShapeRuleError(
+            f"DualStreamJointAttention inputs must be (B, S, d); got dm {dm} and ar {ar}"
+        )
+    if not _dims_match(dm[0], ar[0]):
+        raise ShapeRuleError(f"DualStreamJointAttention batch dims differ: dm {dm} vs ar {ar}")
+    if not _dims_match(dm[2], ar[2]):
+        raise ShapeRuleError(f"DualStreamJointAttention feature dims differ: dm {dm} vs ar {ar}")
+    return dm
 
 
 def _dual_joint_params(args, shapes):
@@ -469,6 +485,11 @@ def _torch_call_module(args: list[str], inputs: list[str]) -> str:
     return inputs[0] if len(inputs) == 1 else "(" + ", ".join(inputs) + ")"
 
 
+def is_causal_mha(args: list[str]) -> bool:
+    """`MultiHeadAttention(d, h, dropout, causal)`: only the literal 4th token opts in."""
+    return len(args) >= 4 and args[3].strip() == "causal"
+
+
 def _torch_call_mha(args: list[str], inputs: list[str]) -> str:
     x = inputs[0]
     return f"{x}, _ = self.{{NAME}}({x}, {x}, {x})"
@@ -486,12 +507,22 @@ def _torch_init_mha(args: list[str]) -> str:
 
 
 def _torch_call_dual(args: list[str], inputs: list[str]) -> str:
-    x = inputs[0]
-    return f"{x}, _ = self.{{NAME}}({x}, {x}, {x})"
+    # Queries from dm; keys/values over concat(ar, dm) on the sequence axis; no
+    # mask (DM is bidirectional). One K/V projection covers both streams -- in
+    # real MoT the AR tokens would use the AR tower's K/V weights.
+    if len(inputs) != 2:
+        raise ShapeRuleError(
+            f"DualStreamJointAttention needs 2 inputs (dm, ar) in `## flow` row order; "
+            f"got {len(inputs)}. Add the AR edge (e.g. `ar_ln -> dm_mha`); `n-orca verify` reports this too"
+        )
+    dm, ar = inputs[0], inputs[1]
+    kv = f"torch.cat([{ar}, {dm}], dim=1)"
+    return f"self.{{NAME}}({dm}, {kv}, {kv})[0]"
 
 
 def _torch_init_dual(args: list[str]) -> str:
-    # placeholder same as MHA for now; real dual will have custom mask/concat logic in special compiler case
+    # One nn.MultiheadAttention: the DM tower's Q/K/V/O. The concat and the
+    # (absent) mask live in _torch_call_dual.
     if len(args) >= 3:
         d, h, drop = args[0], args[1], args[2]
         return f"nn.MultiheadAttention({d}, {h}, dropout={drop}, batch_first=True)"
@@ -656,7 +687,7 @@ _register(OpSpec(
     pytorch_call=_torch_call_gru_cell,
 ))
 _register(OpSpec(
-    "DualStreamJointAttention", 1,
+    "DualStreamJointAttention", 2,
     infer=_dual_joint_infer, params=_dual_joint_params,
     pytorch_init=_torch_init_dual,
     pytorch_call=_torch_call_dual,
