@@ -87,7 +87,7 @@ def compile_pytorch(arch: Architecture) -> str:
     # for correct emission (bypass the generic module path).
     ATTN_TUPLE_OPS = {
         "MultiHeadAttention", "DualStreamJointAttention",
-        "HeadGatedGroupedQueryAttention",
+        "HeadGatedGroupedQueryAttention", "GroupedQueryAttention",
     }
 
     for n in topo:

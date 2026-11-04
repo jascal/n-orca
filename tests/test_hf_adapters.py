@@ -117,6 +117,79 @@ def test_lfm3_generated_pytorch_is_importable_and_shape_compatible():
     assert model(torch.ones(2, 3, dtype=torch.long)).shape == (2, 3, 128)
 
 
+def _dory_config(**overrides):
+    from n_orca.hf.adapters.dory import _default_types
+    cfg = {
+        "_name_or_path": "nvidia/NVIDIA-Nemotron-Labs-Dory1.0-4B-BF16",
+        "model_type": "dory", "architectures": ["DoryForCausalLM"],
+        "vocab_size": 131072, "hidden_size": 2560, "num_hidden_layers": 72,
+        "intermediate_size": 7168, "num_attention_heads": 16,
+        "num_key_value_heads": 4, "head_dim": 256, "sliding_window": 1024,
+        "max_position_embeddings": 262144, "tie_word_embeddings": False,
+        "n_input_layers": 16, "n_recurrent_layers": 40, "n_output_layers": 16,
+        "n_recurrent_loops": 2, "layer_types": _default_types(72),
+    }
+    cfg.update(overrides)
+    return cfg
+
+
+def test_dory_default_schedule_matches_checkpoint_pattern():
+    from n_orca.hf.adapters.dory import _default_types
+    types = _default_types(72)
+    assert types[:8] == ["sliding_attention", "mlp", "sliding_attention", "mlp",
+                         "sliding_attention", "mlp", "full_attention", "mlp"]
+    assert types.count("full_attention") == 9 and types.count("mlp") == 36
+
+
+def test_dory_conversion_unrolls_loops_with_input_reinjection():
+    result = convert(_dory_config())
+    arch = result.architecture
+    assert result.report.valid, [e.code for e in result.report.errors]
+    assert [g.name for g in arch.groups] == [
+        "input_block", "recurrent_loop_1", "recurrent_loop_2", "output_block"]
+    ops = [ly.op.name for ly in arch.layers if ly.op]
+    # 8 input + 20 recurrent x 2 loops + 8 output attention/MLP sublayers.
+    assert ops.count("GroupedQueryAttention") == 56
+    assert ops.count("FeedForward") == 56
+    h_in = "in_mlp_15_norm"
+    for k, prev in ((1, h_in), (2, "loop1_mlp_55_norm")):
+        srcs = sorted(e.source for e in arch.flow if e.target == f"loop{k}_inject")
+        assert srcs == sorted([prev, h_in])
+    assert {e.source for e in arch.flow if e.target == "out_swa_56"} == {"loop2_mlp_55_norm"}
+    assert 'subgraph g_recurrent_loop_2["recurrent_loop_2"]' in result.mermaid
+
+
+def test_dory_loop_count_follows_config():
+    arch = convert(_dory_config(n_recurrent_loops=4)).architecture
+    assert sum(g.name.startswith("recurrent_loop_") for g in arch.groups) == 4
+
+
+def test_dory_rejects_inconsistent_split():
+    with pytest.raises(ValueError, match="n_input_layers"):
+        convert(_dory_config(n_recurrent_layers=38))
+
+
+def test_gqa_params_use_explicit_head_dim():
+    from n_orca.ops.spec import get_op
+    spec = get_op("GroupedQueryAttention")
+    # q/o: 2560 x (16*256); k/v: 2560 x (4*256)
+    assert spec.params(["2560", "16", "4", "256", "0"], []) == 2 * 2560 * 4096 + 2 * 2560 * 1024
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="torch not installed")
+def test_dory_generated_pytorch_is_shape_compatible():
+    result = convert(_dory_config(hidden_size=32, intermediate_size=64, head_dim=8,
+                                  num_attention_heads=4, num_key_value_heads=1,
+                                  vocab_size=128))
+    from n_orca.compiler import compile_pytorch
+    ns: dict = {}
+    exec(compile_pytorch(result.architecture), ns)
+    model = ns[result.architecture.name](vocab_size=128, d_model=32, n_heads=4,
+                                         n_kv_heads=1, head_dim=8, d_ff=64)
+    import torch
+    assert model(torch.ones(2, 3, dtype=torch.long)).shape == (2, 3, 128)
+
+
 def test_dispatch_roberta_via_bert_adapter():
     a = get_adapter(ROBERTA_CONFIG)
     assert a is not None
