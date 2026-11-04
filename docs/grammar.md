@@ -239,7 +239,8 @@ Ops accepted by the parser and compiled by the PyTorch backend:
 | `ReLU()` / `GELU()` / `SiLU()` / `Tanh()` / `Sigmoid()` | preserve | matching nn module | preserve |
 | `Softmax(dim)` | preserve | `nn.Softmax` | preserve |
 | `Embedding(num, dim)` | `(*) int -> (*, dim)` | `nn.Embedding` | append dim |
-| `MultiHeadAttention(d, h, dropout)` | `(B, S, d) -> (B, S, d)` | `nn.MultiheadAttention` (batch_first) | preserve |
+| `MultiHeadAttention(d, h, dropout[, causal])` | `(B, S, d) -> (B, S, d)` | `nn.MultiheadAttention` (batch_first); literal `causal` 4th arg adds a causal mask | preserve |
+| `DualStreamJointAttention(d, h, dropout)` | `dm (B, S_dm, d)`, `ar (B, S_ar, d)` -> `(B, S_dm, d)`; inputs in `## flow` row order | `nn.MultiheadAttention`: queries `dm`, keys/values `cat([ar, dm], dim=1)`, no mask | dm's shape |
 | `FeedForward(d, d_ff, dropout)` | `(*, d) -> (*, d)` | Linear-GELU-Dropout-Linear | preserve |
 | `GRUCell(in, hidden)` | `x (*, in)`, `h (*, hidden)` -> `(*, hidden)`; inputs in `## flow` row order | `nn.GRUCell` over flattened leading dims | h's shape |
 | `Add` | n inputs of shape T -> T | functional `+` | all-same |

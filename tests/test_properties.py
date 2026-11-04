@@ -1222,8 +1222,11 @@ MERMAID_BASELINE = Path(__file__).parent / "data" / "example_mermaid_baseline.tx
 
 
 def _pre_existing_examples() -> list[Path]:
-    # Files added after the baseline was frozen (dory1-4b declares groups).
-    new = {POSITIVE.name, LEAK.name, FULL.name, "dory1-4b.n.orca.md"}
+    # Files that declare groups/properties, so cannot be in the frozen baseline:
+    # added after it was frozen (dory1-4b), or given MoT invariants by
+    # add-mot-joint-attention-masks (tested in test_sae_and_world_models).
+    new = {POSITIVE.name, LEAK.name, FULL.name, "dory1-4b.n.orca.md",
+           "cosmos-mot-denoise-step.n.orca.md"}
     files = sorted(EXAMPLES.glob("*.n.orca.md")) + sorted(
         (EXAMPLES / "hf-generated").glob("*.n.orca.md")
     )

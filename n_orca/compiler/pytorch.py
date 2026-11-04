@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from n_orca.ast import Architecture
 from n_orca.ops import get_op, UnknownOpError
+from n_orca.ops.spec import is_causal_mha
 
 
 def compile_pytorch(arch: Architecture) -> str:
@@ -86,7 +87,7 @@ def compile_pytorch(arch: Architecture) -> str:
     # Ops that return (attn_output, attn_weights) tuple and need special LHS unpack
     # for correct emission (bypass the generic module path).
     ATTN_TUPLE_OPS = {
-        "MultiHeadAttention", "DualStreamJointAttention",
+        "MultiHeadAttention",
         "HeadGatedGroupedQueryAttention", "GroupedQueryAttention",
     }
 
@@ -121,8 +122,15 @@ def compile_pytorch(arch: Architecture) -> str:
 
         if ly.op.name in ATTN_TUPLE_OPS:
             x = input_vars[0]
+            mask = ""
+            if ly.op.name == "MultiHeadAttention" and is_causal_mha(ly.op.args):
+                # Boolean mask: True blocks a position, so triu(1) hides the future.
+                mask = (
+                    f", attn_mask=torch.ones({x}.shape[1], {x}.shape[1], "
+                    f"dtype=torch.bool, device={x}.device).triu(1)"
+                )
             lines.append(
-                f"        {out_var}, _ = self.{_pyid(n)}({x}, {x}, {x})"
+                f"        {out_var}, _ = self.{_pyid(n)}({x}, {x}, {x}{mask})"
             )
         elif spec.is_module:
             # Some module ops use a {NAME} template in their call emitter

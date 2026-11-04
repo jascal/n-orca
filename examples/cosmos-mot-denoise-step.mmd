@@ -1,21 +1,25 @@
 %% architecture MoTDenoiseStep
 flowchart TD
+    subgraph g_ar_tower["ar_tower"]
+        ar_ln["ar_ln<br/>LayerNorm(d_model)"]
+        ar_mha["ar_mha<br/>MultiHeadAttention(d_model, n_heads, 0.0, causal)"]
+        ar_add["ar_add<br/>Add()"]
+    end
+    subgraph g_dm_tower["dm_tower"]
+        ts_embed["ts_embed<br/>TimestepEmbed(timestep_dim, d_model)"]
+        dm_ln["dm_ln<br/>LayerNorm(d_model)"]
+        dm_mha["dm_mha<br/>DualStreamJointAttention(d_model, n_heads, 0.0)"]
+        dm_add["dm_add<br/>Add()"]
+        dm_fc1["dm_fc1<br/>Linear(d_model, h1_dim)"]
+        dm_act1["dm_act1<br/>ReLU()"]
+        dm_fc2["dm_fc2<br/>Linear(h1_dim, h2_dim)"]
+        dm_act2["dm_act2<br/>ReLU()"]
+        dm_head["dm_head<br/>Linear(h2_dim, d_model)"]
+    end
     ar_x(("ar_x<br/>[input]"))
     dm_x_noisy(("dm_x_noisy<br/>[input]"))
     t(("t<br/>[input]"))
-    ar_ln["ar_ln<br/>LayerNorm(d_model)"]
-    ar_mha["ar_mha<br/>MultiHeadAttention(d_model, n_heads, 0.0)"]
-    ar_add["ar_add<br/>Add()"]
     ar_out(("ar_out<br/>[output]"))
-    ts_embed["ts_embed<br/>TimestepEmbed(timestep_dim, d_model)"]
-    dm_ln["dm_ln<br/>LayerNorm(d_model)"]
-    dm_mha["dm_mha<br/>DualStreamJointAttention(d_model, n_heads, 0.0)"]
-    dm_add["dm_add<br/>Add()"]
-    dm_fc1["dm_fc1<br/>Linear(d_model, h1_dim)"]
-    dm_act1["dm_act1<br/>ReLU()"]
-    dm_fc2["dm_fc2<br/>Linear(h1_dim, h2_dim)"]
-    dm_act2["dm_act2<br/>ReLU()"]
-    dm_head["dm_head<br/>Linear(h2_dim, d_model)"]
     dm_x_denoised(("dm_x_denoised<br/>[output]"))
     ts_out(("ts_out<br/>[output]"))
     ar_x -- "ar : (B,S_ar,d_model)" --> ar_ln
@@ -26,6 +30,7 @@ flowchart TD
     t -- "ts : (B,timestep_dim)" --> ts_embed
     dm_x_noisy -- "dm : (B,S_dm,d_model)" --> dm_ln
     dm_ln -- "dm_tok : (B,S_dm,d_model)" --> dm_mha
+    ar_ln -- "ar_kv : (B,S_ar,d_model)" --> dm_mha
     dm_mha -- "dm_a : (B,S_dm,d_model)" --> dm_add
     dm_ln -- "dm_skip : (B,S_dm,d_model)" --> dm_add
     dm_add -- "d_r : (B,S_dm,d_model)" --> dm_fc1

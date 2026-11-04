@@ -36,8 +36,11 @@ From `add-temporal-world-model`:
 - Regenerate sibling docs if `scripts/generate_sibling_docs.py` covers world models.
 
 From `add-cosmos-mot-world-models`:
-- `DualStreamJointAttention` is topology-only: implement AR+DM K/V concat and the
-  AR-causal / DM-bidirectional masks in emitted PyTorch. *new change*
+- **Timestep is not injected into DM** in `mot_denoise_step`: `ts_embed` feeds only
+  the `ts_out` output. Needs a broadcast add (`(B, d)` onto `(B, S_dm, d)`) or an
+  adaLN op. *new change*
+- `dm_mha` projects AR keys/values with the DM tower's K/V weights (real MoT: AR
+  tower's). A faithful version needs shared weights or a split global op.
 - Optional verifier rules for dual-stream shapes / causal notes.
 - Add a MoT section (dated) to `docs/proposed-sae-extensions.md`.
 - AGENTS.md / Focus Areas: mention Physical AI world models if useful.
@@ -64,6 +67,11 @@ This goal is intended to be driven by recurring schedulers, background sub-agent
 
 Last updated: 2026-07-29 (added verifier Stage 6 — topology property checking — via OpenSpec change `add-topology-properties`; 231 passed / 7 skipped; all pre-existing examples byte-identical).
 ## Recent Activity
+
+**2026-11-03 (OpenSpec change `add-mot-joint-attention-masks`)**:
+- `mot_denoise_step` claimed joint attention and a causal AR tower but had neither: `dm_mha` never received AR, and both attentions compiled to unmasked self-attention.
+- `DualStreamJointAttention` is now two-input `(dm, ar)`: DM queries over `cat([ar, dm])` keys/values. `MultiHeadAttention` takes an opt-in literal `causal` 4th arg. Both MoT builders use it; `mot_denoise_step` adds `ar_ln → dm_mha`, `ar_tower`/`dm_tower` groups and four verifier-checked properties (incl. `unreachable: ar_out from dm_x_noisy`). Parameter counts unchanged.
+- Tests check the masks numerically, and both fixes were mutation-checked (tests fail with the mask off, and with AR removed from K/V). The denoise-step example left the frozen baseline; the reasoner's entry was regenerated (one Mermaid line).
 
 **2026-11-03 (OpenSpec change `add-gru-cell-temporal-world-model`)**:
 - New `GRUCell(input_size, hidden_size)` op: inputs `(x, h)` in flow-row order, last dims matched against the args by name (catches swapped rows), exact `nn.GRUCell` parameter count, emission flattens leading dims.

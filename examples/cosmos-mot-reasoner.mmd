@@ -2,7 +2,7 @@
 flowchart TD
     ar_x(("ar_x<br/>[input]"))
     ar_ln["ar_ln<br/>LayerNorm(d_model)"]
-    ar_mha["ar_mha<br/>MultiHeadAttention(d_model, n_heads, 0.0)"]
+    ar_mha["ar_mha<br/>MultiHeadAttention(d_model, n_heads, 0.0, causal)"]
     ar_add["ar_add<br/>Add()"]
     ar_out(("ar_out<br/>[output]"))
     ar_x -- "ar : (B,S_ar,d_model)" --> ar_ln
