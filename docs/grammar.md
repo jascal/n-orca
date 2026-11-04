@@ -241,6 +241,7 @@ Ops accepted by the parser and compiled by the PyTorch backend:
 | `Embedding(num, dim)` | `(*) int -> (*, dim)` | `nn.Embedding` | append dim |
 | `MultiHeadAttention(d, h, dropout)` | `(B, S, d) -> (B, S, d)` | `nn.MultiheadAttention` (batch_first) | preserve |
 | `FeedForward(d, d_ff, dropout)` | `(*, d) -> (*, d)` | Linear-GELU-Dropout-Linear | preserve |
+| `GRUCell(in, hidden)` | `x (*, in)`, `h (*, hidden)` -> `(*, hidden)`; inputs in `## flow` row order | `nn.GRUCell` over flattened leading dims | h's shape |
 | `Add` | n inputs of shape T -> T | functional `+` | all-same |
 | `Mul` | n inputs of shape T -> T | functional `*` | all-same |
 | `Concat(dim)` | n inputs differing only in `dim` | `torch.cat` | sum-on-dim |

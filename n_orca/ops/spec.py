@@ -298,6 +298,55 @@ def _gqa_params(args, shapes):
     return 2 * d * heads * head_dim + 2 * d * kv_heads * head_dim
 
 
+def _gru_cell_infer(args, shapes):
+    """GRUCell(input_size, hidden_size): inputs (x, h) in flow-row order.
+
+    x is (*, input_size), h is (*, hidden_size) with equal leading dims; the
+    output (the new hidden state) has h's shape. Matching the last dims against
+    the op args by name is what catches swapped `## flow` rows.
+    """
+    _require_arity("GRUCell", 2, len(shapes))
+    if len(args) < 2:
+        raise ShapeRuleError("GRUCell requires (input_size, hidden_size) args")
+    (x, h), (in_size, hid_size) = shapes, args[:2]
+    if not x or not h:
+        raise ShapeRuleError("GRUCell inputs must have at least one dim")
+    if not _dims_match(x[-1], in_size):
+        raise ShapeRuleError(
+            f"GRUCell first input (x) last dim {x[-1]!r} must equal input_size "
+            f"{in_size!r}; list the x edge before the hidden-state edge in `## flow`"
+        )
+    if not _dims_match(h[-1], hid_size):
+        raise ShapeRuleError(
+            f"GRUCell second input (h) last dim {h[-1]!r} must equal hidden_size "
+            f"{hid_size!r}; list the hidden-state edge second in `## flow`"
+        )
+    if len(x) != len(h) or not all(_dims_match(a, b) for a, b in zip(x[:-1], h[:-1])):
+        raise ShapeRuleError(
+            f"GRUCell inputs must share leading dims; got x {x} and h {h}"
+        )
+    return h
+
+
+def _gru_cell_params(args, shapes):
+    """Exact torch.nn.GRUCell count: W_ih (3h x i), W_hh (3h x h), two 3h biases."""
+    if len(args) < 2:
+        return 0
+    i, h = _try_int(args[0]), _try_int(args[1])
+    if i is None or h is None:
+        return 0
+    return 3 * (i * h + h * h + 2 * h)
+
+
+def _torch_call_gru_cell(args: list[str], inputs: list[str]) -> str:
+    # nn.GRUCell takes (batch, features): flatten leading dims, restore h's shape.
+    x, h = inputs[0], inputs[1]
+    return (
+        f"self.{{NAME}}({x}.reshape(-1, {x}.shape[-1]), "
+        f"{h}.reshape(-1, {h}.shape[-1])).reshape({h}.shape)"
+    )
+
+
 def _dual_joint_infer(args, shapes):
     _require_arity("DualStreamJointAttention", 1, len(shapes))
     return shapes[0]
@@ -596,6 +645,15 @@ _register(OpSpec(
         if len(a) >= 2 else "nn.Identity()"
     ),
     pytorch_call=_torch_call_mha,
+))
+_register(OpSpec(
+    "GRUCell", 2,
+    # Args: input_size, hidden_size. Inputs: (x, h) in `## flow` row order.
+    infer=_gru_cell_infer, params=_gru_cell_params,
+    pytorch_init=lambda a: (
+        f"nn.GRUCell({a[0]}, {a[1]})" if len(a) >= 2 else "nn.Identity()  # GRUCell — missing args"
+    ),
+    pytorch_call=_torch_call_gru_cell,
 ))
 _register(OpSpec(
     "DualStreamJointAttention", 1,

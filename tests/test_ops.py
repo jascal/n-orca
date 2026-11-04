@@ -198,3 +198,67 @@ def test_patch_embed_folds_image_to_tokens():
 def test_patch_embed_params_match_conv2d():
     spec = get_op("PatchEmbed")
     assert spec.params(["3", "192", "14"], []) == 3 * 192 * 14 * 14 + 192
+
+
+# --------------------------------------------------------------------------- #
+#  GRUCell (add-gru-cell-temporal-world-model)
+# --------------------------------------------------------------------------- #
+
+
+def test_gru_cell_output_has_hidden_shape():
+    spec = get_op("GRUCell")
+    out = spec.infer(["embed_dim", "gru_hidden"],
+                     [("B", "N", "embed_dim"), ("B", "N", "gru_hidden")])
+    assert out == ("B", "N", "gru_hidden")
+    assert spec.infer(["16", "32"], [("B", "16"), ("B", "32")]) == ("B", "32")
+
+
+def test_gru_cell_rejects_swapped_inputs():
+    spec = get_op("GRUCell")
+    with pytest.raises(ShapeRuleError, match="input_size|hidden_size"):
+        spec.infer(["embed_dim", "gru_hidden"],
+                   [("B", "N", "gru_hidden"), ("B", "N", "embed_dim")])
+    # Symbolic names catch a swap even when the sizes would coincide.
+    with pytest.raises(ShapeRuleError):
+        spec.infer(["d_a", "d_b"], [("B", "d_b"), ("B", "d_a")])
+
+
+def test_gru_cell_rejects_mismatched_leading_dims():
+    spec = get_op("GRUCell")
+    with pytest.raises(ShapeRuleError, match="leading"):
+        spec.infer(["16", "32"], [("B", "N", "16"), ("B", "M", "32")])
+
+
+@pytest.mark.parametrize("n_inputs", [1, 3])
+def test_gru_cell_requires_exactly_two_inputs(n_inputs):
+    spec = get_op("GRUCell")
+    assert spec.arity == 2
+    with pytest.raises(ShapeRuleError):
+        spec.infer(["16", "32"], [("B", "16")] * n_inputs)
+
+
+def test_gru_cell_params_match_pytorch_formula():
+    spec = get_op("GRUCell")
+    assert spec.params(["64", "128"], []) == 74_496
+    assert spec.params(["16", "32"], []) == 3 * (16 * 32 + 32 * 32 + 2 * 32)
+
+
+def test_gru_cell_params_match_torch():
+    torch = pytest.importorskip("torch")
+    cell = torch.nn.GRUCell(64, 128)
+    assert get_op("GRUCell").params(["64", "128"], []) == sum(p.numel() for p in cell.parameters())
+
+
+def test_gru_cell_emission_matches_rowwise_grucell():
+    torch = pytest.importorskip("torch")
+    spec = get_op("GRUCell")
+    init = spec.pytorch_init(["16", "32"])
+    call = spec.pytorch_call(["16", "32"], ["x", "h"])
+    nn = torch.nn
+    m = nn.Module()
+    m.gru = eval(init, {"nn": nn})
+    x, h = torch.randn(2, 5, 16), torch.randn(2, 5, 32)
+    out = eval(call.replace("{NAME}", "gru"), {"self": m, "x": x, "h": h})
+    assert out.shape == (2, 5, 32)
+    ref = m.gru(x.reshape(10, 16), h.reshape(10, 32)).reshape(2, 5, 32)
+    assert torch.allclose(out, ref)

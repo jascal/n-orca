@@ -230,6 +230,7 @@ group-quantification rules.
 | `TubeletEmbed(c, d, t, p)` | `nn.Conv3d` + flatten + transpose | video clip → tubelet-token sequence (V-JEPA 2) |
 | `MultiHeadAttention(d, h, dropout)` | `nn.MultiheadAttention` (batch-first) | self-attention |
 | `FeedForward(d, d_ff, dropout)` | `nn.Sequential(Linear, GELU, Dropout, Linear, Dropout)` | transformer FFN |
+| `GRUCell(in, hidden)` | `nn.GRUCell` over flattened leading dims | one recurrent step; inputs `(x, h)` in `## flow` row order |
 | `Add`, `Mul` | functional `+` / `*` | residual / gated paths |
 | `Concat(dim)` | `torch.cat` | skip connections |
 | `Mean(dim)` | `tensor.mean(dim=…)` | sequence / global pooling |
@@ -418,7 +419,7 @@ World models (SAE training substrates, H1 activations are the target):
 - `world_model` (baseline 2-layer MLP)
 - `deep_world_model`
 - `attn_world_model` (per-agent / per-position MultiHeadAttention + residual + LN before the MLP — the biggest single lift for conjunctive features in econ-sae)
-- `temporal_world_model` (attn + explicit `hidden_in`/`hidden_out` state carry for cross-period regime features per econ-sae; see OpenSpec add-temporal-world-model)
+- `temporal_world_model` (one period of econ-sae's `TemporalWorldModel`: per-period attn → `GRUCell` state update → MLP head, with `hidden_in`/`hidden_out` carried by the caller; h1 is post-GRU so it carries cross-period regime context. The GRU replaced a linear placeholder in `add-gru-cell-temporal-world-model`, which changed the generated graph and parameter count)
 - `mot_denoise_step` (MoT dual-tower AR-reasoner + DM-generator + timestep for Cosmos 3-style diffusion/multimodal world models; enables richer physics/conjunctive/diffusion-stage SAE GT; see OpenSpec add-cosmos-mot-world-models + subagent report)
 
 SAE variants (all verify + compile to PyTorch/Mermaid):

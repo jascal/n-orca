@@ -368,7 +368,7 @@ def build_world_model(
     elif variant in ("temporal", "temporal_world_model"):
         arch = _wm.temporal_world_model(
             embed_dim=embed_dim, n_heads=n_heads,
-            gru_hidden=gru_hidden if 'gru_hidden' in locals() else 128,
+            gru_hidden=gru_hidden,
             h1_dim=h1_dim, h2_dim=h2_dim, **common,
         )
     elif variant in ("mot", "mot_denoise", "cosmos_mot", "mot_world_model"):

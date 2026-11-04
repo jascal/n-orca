@@ -6,7 +6,7 @@ These cover econ-sae's variants (including temporal for regime features) and Cos
                           the canonical SAE training substrate)
 - `deep_world_model`   — 3+ hidden layers, otherwise identical
 - `attn_world_model`   — per-agent multi-head self-attention before the MLP
-- `temporal_world_model` — attn + explicit state carry (hidden tensor) for cross-period context
+- `temporal_world_model` — attn + GRU state update (hidden_in -> hidden_out) for cross-period context
 - `mot_denoise_step` — MoT dual-tower (AR reasoner causal + DM generator bidirectional + timestep) per-denoise-step DAG for Cosmos 3-style diffusion/multimodal world models (external schedule like temporal). Enables physics-rich SAE GT.
 
 These architectures are intentionally small (43-dim input, ~100-dim hidden)
@@ -236,13 +236,13 @@ def temporal_world_model(
     This implements a per-step graph (one time step / period) with an additional 'hidden' state tensor
     that can be carried across periods by the caller (e.g. econ-sae trainer unrolling the trajectory).
 
-    Based on econ-sae TemporalWorldModel (attn + GRU) and the design in the OpenSpec change:
-    - Same attn + residual + LN + MLP structure as attn_world_model for per-period cross-agent context.
-    - Explicit 'hidden_in' / 'hidden_out' tensors (shape (B, N, gru_hidden)) for temporal state.
-    - Simple linear `hidden_update` as starting point. Full recurrent logic (e.g. actual GRU cell with
-      reset/update gates) is planned for a follow-up refinement (may live in the PyTorch emission or a
-      future builder variant).
-    - The h1 (post-attn) remains the SAE substrate; state allows encoding regime features over time.
+    One period of econ-sae's TemporalWorldModel (econsae/sae/world_model.py):
+    - Per-period cross-agent attention: embed -> attn -> Add(skip) -> LayerNorm.
+    - A `GRUCell(embed_dim, gru_hidden)` takes that output and `hidden_in` and produces the
+      new state, which feeds both `hidden_out` and the MLP head. This is one step of
+      econ-sae's per-agent `nn.GRU` over periods.
+    - h1 (`fc1` + ReLU, reading the GRU output) is the SAE substrate, so it carries
+      cross-period (regime) information, as in econ-sae.
 
     The Architecture is a DAG; recurrence is handled externally by carrying hidden across steps.
     This matches the "per-step-with-state" representation in the proposal and design.md.
@@ -250,10 +250,11 @@ def temporal_world_model(
     arch = Architecture(
         name=name,
         description=(
-            f"Temporal world-model (per-period attn + state carry, gru_hidden={gru_hidden}). "
-            "Extends attn_world_model with explicit hidden state tensors for cross-period context "
-            "(enables regime/windowed feature recovery per econ-sae). h1 is the SAE substrate. "
-            "Caller manages unrolling/carrying hidden across T periods."
+            f"Temporal world-model: one period of econ-sae's TemporalWorldModel "
+            f"(per-period cross-agent attn -> GRU state update, gru_hidden={gru_hidden} -> MLP head). "
+            "The GRU output is both the new state (hidden_out) and the head's input, so h1, the "
+            "SAE substrate, carries cross-period (regime) context. "
+            "Caller carries hidden_out back in as hidden_in across T periods."
         ),
         hyperparameters=[
             Hyperparameter("input_dim", "int", input_dim),
@@ -279,27 +280,29 @@ def temporal_world_model(
     arch.layers.append(Layer(name="attn", op=OpCall("MultiHeadAttention", ["embed_dim", "n_heads", "0.0"])))
     arch.layers.append(Layer(name="add_attn", op=OpCall("Add", [])))
     arch.layers.append(Layer(name="ln", op=OpCall("LayerNorm", ["embed_dim"])))
-    arch.layers.append(Layer(name="fc1", op=OpCall("Linear", ["embed_dim", "h1_dim"])))
+    arch.layers.append(Layer(name="gru", op=OpCall("GRUCell", ["embed_dim", "gru_hidden"]),
+                              description="GRU state update: (period features, hidden_in) -> new hidden"))
+    arch.layers.append(Layer(name="fc1", op=OpCall("Linear", ["gru_hidden", "h1_dim"])))
     arch.layers.append(Layer(name="act1", op=OpCall("ReLU", []),
-                              description="ReLU on H1 — SAE substrate (post temporal context)"))
+                              description="ReLU on H1 — SAE substrate (post-GRU, carries temporal context)"))
     arch.layers.append(Layer(name="fc2", op=OpCall("Linear", ["h1_dim", "h2_dim"])))
     arch.layers.append(Layer(name="act2", op=OpCall("ReLU", [])))
     arch.layers.append(Layer(name="head", op=OpCall("Linear", ["h2_dim", "out_dim"])))
     arch.layers.append(Layer(name="y", is_output=True))
 
-    # Explicit state carry path (simple linear hidden_update as initial temporal mechanism;
-    # full GRU planned as follow-up per design)
-    arch.layers.append(Layer(name="hidden_update", op=OpCall("Linear", ["gru_hidden", "gru_hidden"])))
     arch.layers.append(Layer(name="hidden_out", is_output=True))
 
-    # Flow for main prediction path (x -> y via attn)
+    # Prediction path: x -> attn -> GRU -> head -> y. The `ln -> gru` row must
+    # precede `hidden_in -> gru`: GRUCell takes (x, h) in flow-row order.
     arch.flow.extend([
         FlowEdge("x", "embed", "x"),
         FlowEdge("embed", "attn", "tokens"),
         FlowEdge("attn", "add_attn", "attn_out"),
         FlowEdge("embed", "add_attn", "tok_skip"),
         FlowEdge("add_attn", "ln", "r"),
-        FlowEdge("ln", "fc1", "r_n"),
+        FlowEdge("ln", "gru", "r_n"),
+        FlowEdge("hidden_in", "gru", "h_in"),
+        FlowEdge("gru", "fc1", "h_new"),
         FlowEdge("fc1", "act1", "z1"),
         FlowEdge("act1", "fc2", "h1"),
         FlowEdge("fc2", "act2", "z2"),
@@ -307,11 +310,8 @@ def temporal_world_model(
         FlowEdge("head", "y", "y_hat"),
     ])
 
-    # Flow for state carry (hidden_in -> hidden_out)
-    arch.flow.extend([
-        FlowEdge("hidden_in", "hidden_update", "h_in"),
-        FlowEdge("hidden_update", "hidden_out", "h_out"),
-    ])
+    # State carry: the GRU output is also the new hidden state.
+    arch.flow.append(FlowEdge("gru", "hidden_out", "h_out"))
 
     # Note: no single output_shape invariant because we have y (out_dim) and hidden_out (gru_hidden)
     # The main y output shape is enforced by the head layer.
