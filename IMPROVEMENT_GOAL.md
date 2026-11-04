@@ -26,6 +26,29 @@
 - Internal quality (compiler robustness, op coverage, performance of verify/compile).
 - Release hygiene (version bumps, changelogs, CI robustness).
 
+## Open follow-ups (carried from archived OpenSpec changes)
+
+Unfinished tasks from changes archived on 2026-11-03. Each is small enough for
+one improvement cycle unless marked *new change*.
+
+From `add-temporal-world-model`:
+- **Real GRU cell** for `temporal_world_model` — `hidden_update` is a linear
+  placeholder; add a recurrent-cell op with shape inference + PyTorch emission
+  and keep `forward(x, hidden_in) -> (y, hidden_out)`. *new change*
+- Note for econ-sae that the n-orca `.n.orca.md` is the spec it should consume.
+- Regenerate sibling docs if `scripts/generate_sibling_docs.py` covers world models.
+- Add an MCP test for `build_world_model(variant="temporal")` (none exists; the
+  `'gru_hidden' in locals()` guard in `mcp_server.py` is always true and can go).
+
+From `add-cosmos-mot-world-models`:
+- `DualStreamJointAttention` is topology-only: implement AR+DM K/V concat and the
+  AR-causal / DM-bidirectional masks in emitted PyTorch. *new change*
+- Optional verifier rules for dual-stream shapes / causal notes.
+- Add a MoT section (dated) to `docs/proposed-sae-extensions.md`.
+- AGENTS.md / Focus Areas: mention Physical AI world models if useful.
+- Out of n-orca scope: scaffold a `world-sae` repo; sae-forge / polygram /
+  econ-sae / sm-sae cross-project work.
+
 ## How to Work on This Goal
 
 **Current active schedulers (as of this edit):** dev/improvement 019e8d4f094e + review agent 019e8e118710 (both 3h recurring durable; phases offset). No duplicates. Use `scheduler_list` for live. (See full in Recent + AGENTS.md).
@@ -46,6 +69,11 @@ This goal is intended to be driven by recurring schedulers, background sub-agent
 
 Last updated: 2026-07-29 (added verifier Stage 6 — topology property checking — via OpenSpec change `add-topology-properties`; 231 passed / 7 skipped; all pre-existing examples byte-identical).
 ## Recent Activity
+
+**2026-11-03 (OpenSpec close-out: four changes archived)**:
+- Archived `add-dory-looped-architecture` (PR #19) and `add-lfm3-hybrid-architecture` (PR #20): all tasks complete.
+- Closed out and archived `add-temporal-world-model` and `add-cosmos-mot-world-models`. Both had shipped their core work in June but had no `specs/` (so `openspec validate` failed) and open tasks. Wrote specs describing what was actually built (all three builders verified and run a forward pass), checked off tasks that were done, and moved the rest into each `tasks.md` "Deferred at archive" list and into "Open follow-ups" above.
+- `openspec/changes/` now has no active changes.
 
 **2026-07-29 (human-directed change: topology property checking)**:
 - Checked `gh pr list --state open` first: **no open PRs**, so no scope collision with the verifier/parser/AST.
