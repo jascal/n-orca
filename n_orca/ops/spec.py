@@ -287,6 +287,17 @@ def _lfm3_gqa_params(args, shapes):
     return 2 * d * d + 2 * d * kv_width + d * heads
 
 
+def _gqa_params(args, shapes):
+    """GQA with an explicit head_dim: Q/O are n_heads*head_dim wide, K/V are
+    n_kv_heads*head_dim wide. Bias-free (Dory/nGPT style)."""
+    if len(args) < 4:
+        return 0
+    d, heads, kv_heads, head_dim = (_try_int(a) for a in args[:4])
+    if None in (d, heads, kv_heads, head_dim):
+        return 0
+    return 2 * d * heads * head_dim + 2 * d * kv_heads * head_dim
+
+
 def _dual_joint_infer(args, shapes):
     _require_arity("DualStreamJointAttention", 1, len(shapes))
     return shapes[0]
@@ -568,6 +579,18 @@ _register(OpSpec(
     # This MHA proxy preserves the graph and shape for inspection only. It
     # deliberately does not reproduce GQA KV grouping, per-head sigmoid gates,
     # RoPE, or the optional sliding-window causal mask.
+    pytorch_init=lambda a: (
+        f"nn.MultiheadAttention({a[0]}, {a[1]}, batch_first=True)"
+        if len(a) >= 2 else "nn.Identity()"
+    ),
+    pytorch_call=_torch_call_mha,
+))
+_register(OpSpec(
+    "GroupedQueryAttention", 1,
+    # Args: d_model, n_heads, n_kv_heads, head_dim, window (0 = global).
+    infer=_preserve, params=_gqa_params,
+    # Topology-only like HeadGatedGroupedQueryAttention: MHA preserves the
+    # graph/shape but not GQA sharing, head_dim != d/h, RoPE or window masks.
     pytorch_init=lambda a: (
         f"nn.MultiheadAttention({a[0]}, {a[1]}, batch_first=True)"
         if len(a) >= 2 else "nn.Identity()"

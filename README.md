@@ -265,6 +265,7 @@ n-orca hf download facebook/vjepa2-vitl-fpc64-256 --config-only --include-proces
 n-orca hf convert gpt2 --out gpt2.n.orca.md --mermaid gpt2.mmd
 n-orca hf convert meta-llama/Llama-2-7b-hf --out llama-7b.n.orca.md
 n-orca hf convert LiquidAI/LFM3-1.7B-Base --out lfm3-1.7b.n.orca.md --mermaid lfm3-1.7b.mmd
+n-orca hf convert nvidia/NVIDIA-Nemotron-Labs-Dory1.0-4B-BF16 --out dory1-4b.n.orca.md --mermaid dory1-4b.mmd
 
 # JEPA / V-JEPA 2 / LeWorldModel world models
 n-orca hf convert facebook/vjepa2-vitl-fpc64-256 --out vjepa2.n.orca.md --mermaid vjepa2.mmd
@@ -283,6 +284,7 @@ writes a verified `.n.orca.md`.
 | `Gpt2Adapter` | `gpt2`, `gpt_neo`, `gpt_neox`, `openai-gpt` | Decoder-only, pre-LN, learned positional embeddings |
 | `LlamaFamilyAdapter` | `llama`, `mistral`, `mixtral`, `qwen2`, `qwen3`, `qwen2_moe`, `gemma`, `gemma2`, `phi`, `phi3` | Decoder-only, RMSNorm + RoPE + SwiGLU (approximated in v1) |
 | `Lfm3Adapter` | `lfm3` | Liquid AI's tri-hybrid causal decoder: gated short convolution + sliding/global head-gated GQA, with sandwich norms. Generated PyTorch is topology-only for its custom kernels, masks, RoPE, and gates. |
+| `DoryAdapter` | `dory` | NVIDIA Nemotron-Labs Dory: looped (latent-recurrent) nGPT decoder. Input / Recurrent / Output groups drawn as Mermaid subgraphs; the shared Recurrent block is **unrolled** `n_recurrent_loops` times with the input block's output re-injected before each loop. Unrolled loops share weights in the real model but are counted per loop by n-orca. SwiGLU rendered as FeedForward; nGPT normalization rendered as Add + LayerNorm. |
 | `BertAdapter` | `bert`, `roberta`, `distilbert`, `electra`, `albert` | Encoder-only, post-LN; segment-type embeddings omitted in v1 |
 | `EsmAdapter` | `esm` | ESM-2 protein LM; pre-norm encoder, rotary positions left implicit |
 | `JepaAdapter` | `vjepa2`, `ijepa`, `jepa`, `leworldmodel`, `lewm` (+ `VJEPA2Model` / `IJepaModel` / LeWM Hydra configs) | Joint-embedding **world models**: ViT encoder → predictor. Video tubelet (Conv3d) or image patch (Conv2d) embed; optional action conditioning + projector. Mask tokens, EMA target, SIGReg (latent regularizer) captured as verification rules |
@@ -322,7 +324,8 @@ print(f"params: {result.report.param_count:,}, valid: {result.report.valid}")
 Pre-generated example outputs live in [`examples/hf-generated/`](examples/hf-generated/):
 `gpt2-small.n.orca.md`, `bert-base-uncased.n.orca.md`, `llama-7b.n.orca.md`,
 `tinyllama-2L.n.orca.md`, `vjepa2.n.orca.md` (V-JEPA 2 ViT-L, 326M params),
-`lewm-pusht.n.orca.md` (action-conditioned LeWorldModel) — each with a matching
+`lewm-pusht.n.orca.md` (action-conditioned LeWorldModel), `dory1-4b.n.orca.md`
+(NVIDIA Dory looped LM, 2 loops unrolled) — each with a matching
 `.mmd` diagram.
 
 ---

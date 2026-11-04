@@ -1222,7 +1222,8 @@ MERMAID_BASELINE = Path(__file__).parent / "data" / "example_mermaid_baseline.tx
 
 
 def _pre_existing_examples() -> list[Path]:
-    new = {POSITIVE.name, LEAK.name, FULL.name}
+    # Files added after the baseline was frozen (dory1-4b declares groups).
+    new = {POSITIVE.name, LEAK.name, FULL.name, "dory1-4b.n.orca.md"}
     files = sorted(EXAMPLES.glob("*.n.orca.md")) + sorted(
         (EXAMPLES / "hf-generated").glob("*.n.orca.md")
     )
